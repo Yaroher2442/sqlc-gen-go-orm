@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/iancoleman/strcase"
 	"go/format"
+	"slices"
 	"strings"
 	"text/template"
 
@@ -199,6 +200,10 @@ func validate(options *opts.Options, enums []Enum, structs []Struct, queries []Q
 	return nil
 }
 
+func strsliceContains(s []string, e string) bool {
+	return slices.Contains(s, e)
+}
+
 func generate(req *plugin.GenerateRequest, options *opts.Options, enums []Enum, structs []Struct, queries []Query) (*plugin.GenerateResponse, error) {
 	i := &importer{
 		Options: options,
@@ -253,6 +258,8 @@ func generate(req *plugin.GenerateRequest, options *opts.Options, enums []Enum, 
 		"hasImports": i.HasImports,
 		"hasPrefix":  strings.HasPrefix,
 		"dbName":     strcase.ToSnake,
+		"camel":      strcase.ToCamel,
+		"contains":   strings.Contains,
 
 		// These methods are Go specific, they do not belong in the codegen package
 		// (as that is language independent)
@@ -348,9 +355,11 @@ func generate(req *plugin.GenerateRequest, options *opts.Options, enums []Enum, 
 		}
 	}
 
-	ormFileName := "orm.go"
 	if tctx.Orm {
-		if err := execute(ormFileName, "ormFile"); err != nil {
+		if err := execute("orm.go", "ormFile"); err != nil {
+			return nil, err
+		}
+		if err := execute("orm_fields.go", "ormFieldsFile"); err != nil {
 			return nil, err
 		}
 	}

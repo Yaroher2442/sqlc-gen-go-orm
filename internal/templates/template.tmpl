@@ -261,3 +261,10 @@ import (
     {{- template "ormCodePgx" .}}
 {{end}}
 {{end}}
+
+
+{{define "ormFieldsFile"}}
+{{if .SQLDriver.IsPGX }}
+    {{- template "ormFieldsCodePgx" .}}
+{{end}}
+{{end}}

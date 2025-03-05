@@ -141,3 +141,69 @@ func toLowerCase(str string) string {
 
 	return strings.ToLower(str[:1]) + str[1:]
 }
+
+type ActionCode struct {
+}
+
+func (gf Field) SqlCanAction() map[string]string {
+	// Операции для типа bool
+	if gf.Type == "bool" {
+		mp := map[string]string{
+			"EQ":  "=",
+			"NEQ": "<>",
+		}
+		if strings.Contains(gf.Type, "*") {
+			mp["IS NULL"] = "IS NULL"
+			mp["IS NOT NULL"] = "IS NOT NULL"
+		}
+		return mp
+	}
+	actions := map[string]string{
+		"EQ":  "=",
+		"NEQ": "<>",
+		"GT":  ">",
+		"GTE": ">=",
+		"LT":  "<",
+		"LTE": "<=",
+	}
+
+	// Операции для типа string
+	if gf.Type == "string" {
+		actions["LIKE"] = "LIKE"
+		actions["ILIKE"] = "ILIKE"
+		actions["NOT LIKE"] = "NOT LIKE"
+		actions["NOT ILIKE"] = "NOT ILIKE"
+		actions["SIMILAR TO"] = "SIMILAR TO"
+	}
+
+	// Операции для типов, содержащих "*" (например, указатели)
+	if strings.Contains(gf.Type, "*") {
+		actions["IS NULL"] = "IS NULL"
+		actions["IS NOT NULL"] = "IS NOT NULL"
+	}
+
+	// Операции для типов, содержащих "time" (например, временные типы)
+	if strings.Contains(strings.ToLower(gf.Type), "time") {
+		actions["BETWEEN"] = "BETWEEN"
+		actions["NOT BETWEEN"] = "NOT BETWEEN"
+	}
+
+	// Операции для числовых и временных типов
+	if gf.Type == "int" || gf.Type == "float" || strings.Contains(gf.Type, "time") {
+		actions["BETWEEN"] = "BETWEEN"
+		actions["NOT BETWEEN"] = "NOT BETWEEN"
+	}
+
+	// Операции для типов, поддерживающих IN и NOT IN
+	if gf.Type == "int" || gf.Type == "float" || gf.Type == "string" {
+		actions["IN"] = "IN"
+		actions["NOT IN"] = "NOT IN"
+	}
+
+	if strings.Contains(gf.Type, "[]") && gf.Type != "[]byte" {
+		actions["IN"] = "IN"
+		actions["NOT IN"] = "NOT IN"
+	}
+
+	return actions
+}

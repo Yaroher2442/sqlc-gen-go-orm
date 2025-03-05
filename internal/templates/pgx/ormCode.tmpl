@@ -39,7 +39,51 @@ func NewOrm(db ORMDB) *Orm {
 }
 
 {{range .Structs}}
+{{$Struct:= .}}
 
+
+type {{.Name}}Orm struct {
+    db ORMDB
+}
+
+
+func New{{.Name}}Orm(db ORMDB) *{{.Name}}Orm{
+    return &{{.Name}}Orm{db:db}
+}
+
+func (m *{{.Name}}Orm) scan(scanner interface { Scan(dest ...any) error }) (*{{.Name}},error) {
+    var ret *{{.Name}}
+    if err := scanner.Scan(
+        {{- range .Fields}}
+                &ret.{{.Name}},
+            {{- end}}
+        ); err != nil {
+            return nil, err
+    }
+    return ret, nil
+}
+
+func (q *{{lowerTitle .Name}}QB) build() (string, []any) {
+    clauses := make([]string, 0)
+    args := make([]any, 0)
+    {{- range .Fields}}
+    if q.{{.Name}}.IsSet() {
+        clauses = append(clauses, fmt.Sprintf("{{ dbName .Name}}=$%d", len(args)+1))
+        args = append(args, q.{{.Name}}.MustGet())
+    }
+    {{- end}}
+    fields := []string{
+        {{- range .Fields}}"{{ dbName .Name}}",{{- end}}
+    }
+    return fmt.Sprintf("SELECT %s FROM {{ .Table.Name }} WHERE %s",
+        strings.Join(fields, ", "),
+        strings.Join(clauses, " AND "),
+    ), args
+}
+
+
+
+{{- if .HasPk }}
 type {{.Name}}Update struct { {{- range .Fields}}
   {{- if ne .Name "ID" }}
     {{.Name}} omit.Val[{{.Type}}]
@@ -47,7 +91,6 @@ type {{.Name}}Update struct { {{- range .Fields}}
   {{- end}}
 }
 
-{{- if .HasPk }}
 func (u *{{.Name}}Update) updateQuery() (string, []any) {
     args := make([]any, 0)
     cnt := 2
@@ -63,17 +106,7 @@ func (u *{{.Name}}Update) updateQuery() (string, []any) {
     {{- end}}
     return strings.Join(sqls, ","),args
 }
-{{- end}}
 
-type {{.Name}}Orm struct {
-    db ORMDB
-}
-
-func New{{.Name}}Orm(db ORMDB) *{{.Name}}Orm{
-    return &{{.Name}}Orm{db:db}
-}
-
-{{ if .HasPk }}
 func (m *{{.Name}}Orm) updateQuery(id string,update *{{.Name}}Update,returning bool) (string, []any) {
     fields,args:=update.updateQuery()
     end:=";"
@@ -83,20 +116,7 @@ func (m *{{.Name}}Orm) updateQuery(id string,update *{{.Name}}Update,returning b
     sql := fmt.Sprintf("UPDATE {{ .Table.Name }} SET %s WHERE id = $1%s",fields,end)
     return sql,append([]any{id},args...)
 }
-{{- end}}
 
-func (m *{{.Name}}Orm) scan(scanner interface { Scan(dest ...any) error }) (*{{.Name}},error) {
-    var ret *{{.Name}}
-    if err := scanner.Scan(
-        {{- range .Fields}}
-                &ret.{{.Name}},
-            {{- end}}
-        ); err != nil {
-            return nil, err
-    }
-    return ret, nil
-}
-{{- if .HasPk }}
 const list{{.Name}}Sql = `SELECT
 ({{- range $i, $f := .Fields}}
  {{- if $i}},{{- end}}
@@ -106,7 +126,7 @@ const list{{.Name}}Sql = `SELECT
 FROM {{ .Table.Name }}
 WHERE id > $1 LIMIT $2`
 
-func (m *{{.Name}}Orm) Query(ctx context.Context,idOffset string,limit int) ([]*{{.Name}},error){
+func (m *{{.Name}}Orm) List(ctx context.Context,idOffset string,limit int) ([]*{{.Name}},error){
     rows,err := m.db.Query(ctx,find{{.Name}}Sql,idOffset,limit)
     if err != nil {
         return nil, err
