@@ -16,3 +16,7 @@ bin/sqlc-gen-go.wasm: bin/sqlc-gen-go
 
 bin:
 	mkdir -p bin
+
+test-example:
+	cd plugin && go build -o ../example/sqlc-gen-go-orm ./main.go
+	cd example &&  sqlc generate

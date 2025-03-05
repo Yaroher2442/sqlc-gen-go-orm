@@ -162,6 +162,8 @@ type {{.Name}} struct { {{- range .Fields}}
 {{end}}
 {{end}}
 
+
+
 {{define "queryFile"}}
 {{if .BuildTags}}
 //go:build {{.BuildTags}}
@@ -250,5 +252,12 @@ import (
 {{define "batchCode"}}
 {{if .SQLDriver.IsPGX }}
     {{- template "batchCodePgx" .}}
+{{end}}
+{{end}}
+
+
+{{define "ormFile"}}
+{{if .SQLDriver.IsPGX }}
+    {{- template "ormCodePgx" .}}
 {{end}}
 {{end}}

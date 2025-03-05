@@ -45,6 +45,8 @@ type Options struct {
 	BuildTags                   string            `json:"build_tags,omitempty" yaml:"build_tags"`
 	Initialisms                 *[]string         `json:"initialisms,omitempty" yaml:"initialisms"`
 
+	Orm bool `json:"orm,omitempty" yaml:"orm"`
+
 	InitialismsMap map[string]struct{} `json:"-" yaml:"-"`
 }
 

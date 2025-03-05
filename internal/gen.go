@@ -6,14 +6,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/iancoleman/strcase"
 	"go/format"
 	"strings"
 	"text/template"
 
-	"github.com/sqlc-dev/sqlc-gen-go/internal/opts"
-	"github.com/sqlc-dev/plugin-sdk-go/sdk"
 	"github.com/sqlc-dev/plugin-sdk-go/metadata"
 	"github.com/sqlc-dev/plugin-sdk-go/plugin"
+	"github.com/sqlc-dev/plugin-sdk-go/sdk"
+	"github.com/sqlc-dev/sqlc-gen-go/internal/opts"
 )
 
 type tmplCtx struct {
@@ -41,6 +42,8 @@ type tmplCtx struct {
 	UsesBatch                 bool
 	OmitSqlcVersion           bool
 	BuildTags                 string
+
+	Orm bool
 }
 
 func (t *tmplCtx) OutputQuery(sourceName string) bool {
@@ -104,6 +107,38 @@ func (t *tmplCtx) codegenQueryRetval(q Query) (string, error) {
 	}
 }
 
+//func generateOrmQueries(req *plugin.GenerateRequest, _ *opts.Options) ([]*plugin.Query, error) {
+//	ret := make([]*plugin.Query, 0)
+//	for _, s := range req.GetCatalog().GetSchemas() {
+//		for _, t := range s.GetTables() {
+//			var tableIdRef *plugin.Column
+//			for _, col := range t.GetColumns() {
+//				if col.Name == "Id" {
+//					tableIdRef = col
+//				}
+//			}
+//			if tableIdRef == nil {
+//				continue
+//			}
+//			selectQ := &plugin.Query{
+//				Text:     "SELECT * FROM " + t.Rel.Name,
+//				Name:     "Find" + t.Rel.Name,
+//				Cmd:      metadata.CmdOne,
+//				Columns:  t.GetColumns(),
+//				Filename: "queries.go",
+//				Params: []*plugin.Parameter{
+//					{
+//						Number: 1,
+//						Column: tableIdRef,
+//					},
+//				},
+//			}
+//			ret = append(ret, selectQ)
+//		}
+//	}
+//	return ret, nil
+//}
+
 func Generate(ctx context.Context, req *plugin.GenerateRequest) (*plugin.GenerateResponse, error) {
 	options, err := opts.Parse(req)
 	if err != nil {
@@ -116,6 +151,11 @@ func Generate(ctx context.Context, req *plugin.GenerateRequest) (*plugin.Generat
 
 	enums := buildEnums(req, options)
 	structs := buildStructs(req, options)
+	//ormq, err := generateOrmQueries(req, options)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//req.Queries = append(req.Queries, ormq...)
 	queries, err := buildQueries(req, options, structs)
 	if err != nil {
 		return nil, err
@@ -187,6 +227,7 @@ func generate(req *plugin.GenerateRequest, options *opts.Options, enums []Enum, 
 		SqlcVersion:               req.SqlcVersion,
 		BuildTags:                 options.BuildTags,
 		OmitSqlcVersion:           options.OmitSqlcVersion,
+		Orm:                       options.Orm,
 	}
 
 	if tctx.UsesCopyFrom && !tctx.SQLDriver.IsPGX() && options.SqlDriver != opts.SQLDriverGoSQLDriverMySQL {
@@ -211,6 +252,7 @@ func generate(req *plugin.GenerateRequest, options *opts.Options, enums []Enum, 
 		"imports":    i.Imports,
 		"hasImports": i.HasImports,
 		"hasPrefix":  strings.HasPrefix,
+		"dbName":     strcase.ToSnake,
 
 		// These methods are Go specific, they do not belong in the codegen package
 		// (as that is language independent)
@@ -302,6 +344,13 @@ func generate(req *plugin.GenerateRequest, options *opts.Options, enums []Enum, 
 	}
 	if tctx.UsesBatch {
 		if err := execute(batchFileName, "batchFile"); err != nil {
+			return nil, err
+		}
+	}
+
+	ormFileName := "orm.go"
+	if tctx.Orm {
+		if err := execute(ormFileName, "ormFile"); err != nil {
 			return nil, err
 		}
 	}

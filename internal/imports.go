@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/sqlc-dev/sqlc-gen-go/internal/opts"
 	"github.com/sqlc-dev/plugin-sdk-go/metadata"
+	"github.com/sqlc-dev/sqlc-gen-go/internal/opts"
 )
 
 type fileImports struct {
@@ -101,6 +101,7 @@ func (i *importer) Imports(filename string) [][]ImportSpec {
 	if i.Options.OutputBatchFileName != "" {
 		batchFileName = i.Options.OutputBatchFileName
 	}
+	ormFileName := "orm.go"
 
 	switch filename {
 	case dbFileName:
@@ -113,6 +114,9 @@ func (i *importer) Imports(filename string) [][]ImportSpec {
 		return mergeImports(i.copyfromImports())
 	case batchFileName:
 		return mergeImports(i.batchImports())
+	case ormFileName:
+		return mergeImports(i.ormImports())
+
 	default:
 		return mergeImports(i.queryImports(filename))
 	}
@@ -438,6 +442,23 @@ func (i *importer) copyfromImports() fileImports {
 	}
 
 	return sortedImports(std, pkg)
+}
+
+func (i *importer) ormImports() fileImports {
+	return fileImports{
+		Std: []ImportSpec{
+			{Path: "context"},
+			{Path: "errors"},
+			{Path: "fmt"},
+			{Path: "strings"},
+		},
+		Dep: []ImportSpec{
+			{Path: "github.com/aarondl/opt/omit"},
+			{Path: "github.com/jackc/pgx/v5/pgtype"},
+			{Path: "github.com/jackc/pgx/v5"},
+			{Path: "github.com/jackc/pgx/v5/pgconn"},
+		},
+	}
 }
 
 func (i *importer) batchImports() fileImports {
