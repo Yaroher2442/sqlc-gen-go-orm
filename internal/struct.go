@@ -19,6 +19,15 @@ type Struct struct {
 	Comment string
 }
 
+func (s *Struct) HasPk() bool {
+	for _, field := range s.Fields {
+		if field.Name == "ID" {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Struct) q() string {
 	sb := strings.Builder{}
 	fields := []string{}
@@ -53,6 +62,7 @@ func (s *Struct) upsertArgs() string {
 	}
 	return strings.Join(updateStrs, ", ")
 }
+
 func (s *Struct) UpsertQuery() string {
 	return s.q() + fmt.Sprintf(" ON CONFLICT DO UPDATE SET %s;", s.upsertArgs())
 }

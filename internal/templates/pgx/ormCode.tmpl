@@ -24,6 +24,20 @@ type ORMDB interface {
 	CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error)
 }
 
+type Orm struct {
+    {{range .Structs}}
+    {{- .Name}} *{{.Name}}Orm
+    {{end}}
+}
+
+func NewOrm(db ORMDB) *Orm {
+    return &Orm{
+        {{range .Structs}}
+        {{- .Name}}: New{{.Name}}Orm(db),
+        {{end}}
+    }
+}
+
 {{range .Structs}}
 
 type {{.Name}}Update struct { {{- range .Fields}}
@@ -33,6 +47,7 @@ type {{.Name}}Update struct { {{- range .Fields}}
   {{- end}}
 }
 
+{{- if .HasPk }}
 func (u *{{.Name}}Update) updateQuery() (string, []any) {
     args := make([]any, 0)
     cnt := 2
@@ -48,16 +63,18 @@ func (u *{{.Name}}Update) updateQuery() (string, []any) {
     {{- end}}
     return strings.Join(sqls, ","),args
 }
+{{- end}}
 
-type {{.Name}}ORM struct {
+type {{.Name}}Orm struct {
     db ORMDB
 }
 
-func New{{.Name}}ORM(db ORMDB) *{{.Name}}ORM{
-    return &{{.Name}}ORM{db:db}
+func New{{.Name}}Orm(db ORMDB) *{{.Name}}Orm{
+    return &{{.Name}}Orm{db:db}
 }
 
-func (m *{{.Name}}ORM) updateQuery(id string,update *{{.Name}}Update,returning bool) (string, []any) {
+{{ if .HasPk }}
+func (m *{{.Name}}Orm) updateQuery(id string,update *{{.Name}}Update,returning bool) (string, []any) {
     fields,args:=update.updateQuery()
     end:=";"
     if returning {
@@ -66,8 +83,9 @@ func (m *{{.Name}}ORM) updateQuery(id string,update *{{.Name}}Update,returning b
     sql := fmt.Sprintf("UPDATE {{ .Table.Name }} SET %s WHERE id = $1%s",fields,end)
     return sql,append([]any{id},args...)
 }
+{{- end}}
 
-func (m *{{.Name}}ORM) scan(scanner interface { Scan(dest ...any) error }) (*{{.Name}},error) {
+func (m *{{.Name}}Orm) scan(scanner interface { Scan(dest ...any) error }) (*{{.Name}},error) {
     var ret *{{.Name}}
     if err := scanner.Scan(
         {{- range .Fields}}
@@ -78,7 +96,7 @@ func (m *{{.Name}}ORM) scan(scanner interface { Scan(dest ...any) error }) (*{{.
     }
     return ret, nil
 }
-
+{{- if .HasPk }}
 const list{{.Name}}Sql = `SELECT
 ({{- range $i, $f := .Fields}}
  {{- if $i}},{{- end}}
@@ -88,7 +106,7 @@ const list{{.Name}}Sql = `SELECT
 FROM {{ .Table.Name }}
 WHERE id > $1 LIMIT $2`
 
-func (m *{{.Name}}ORM) Query(ctx context.Context,idOffset string,limit int) ([]*{{.Name}},error){
+func (m *{{.Name}}Orm) Query(ctx context.Context,idOffset string,limit int) ([]*{{.Name}},error){
     rows,err := m.db.Query(ctx,find{{.Name}}Sql,idOffset,limit)
     if err != nil {
         return nil, err
@@ -116,13 +134,13 @@ const find{{.Name}}Sql = `SELECT
 )
 FROM {{ .Table.Name }} WHERE id = $1`
 
-func (m *{{.Name}}ORM) Find(ctx context.Context,id string) (*{{.Name}},error){
+func (m *{{.Name}}Orm) Find(ctx context.Context,id string) (*{{.Name}},error){
     return m.scan(m.db.QueryRow(ctx,find{{.Name}}Sql,id))
 }
-
+{{- end}}
 const insert{{.Name}}Sql = `{{.InsertQuery}}`
 
-func (m *{{.Name}}ORM) Insert(ctx context.Context, create *{{.Name}}) (int64, error){
+func (m *{{.Name}}Orm) Insert(ctx context.Context, create *{{.Name}}) (int64, error){
     tag,err:=m.db.Exec(ctx, insert{{.Name}}Sql,
         {{- range .Fields}}
             create.{{.Name}},
@@ -133,7 +151,7 @@ func (m *{{.Name}}ORM) Insert(ctx context.Context, create *{{.Name}}) (int64, er
 
 const insertRet{{.Name}}Sql = `{{.InsertReturning}}`
 
-func (m *{{.Name}}ORM) InsertRet(ctx context.Context, create *{{.Name}}) (*{{.Name}},error){
+func (m *{{.Name}}Orm) InsertRet(ctx context.Context, create *{{.Name}}) (*{{.Name}},error){
     return m.scan(
     m.db.QueryRow(ctx,insertRet{{.Name}}Sql,
         {{- range .Fields}}
@@ -170,7 +188,7 @@ func (r *iteratorForORM{{.Name}}) Values() ([]interface{}, error) {
     }, nil
 }
 
-func (m *{{.Name}}ORM) InsertMany(ctx context.Context, create []*{{.Name}}) (int64, error){
+func (m *{{.Name}}Orm) InsertMany(ctx context.Context, create []*{{.Name}}) (int64, error){
     return m.db.CopyFrom(ctx, []string{"{{.Table.Name}}"}, []string{
         {{- range .Fields}}
             "{{dbName .Name}}",
@@ -180,7 +198,7 @@ func (m *{{.Name}}ORM) InsertMany(ctx context.Context, create []*{{.Name}}) (int
 
 const upsert{{.Name}}Sql = `{{.UpsertQuery}}`
 
-func (m *{{.Name}}ORM) Upsert(ctx context.Context, create *{{.Name}}) (int64,error){
+func (m *{{.Name}}Orm) Upsert(ctx context.Context, create *{{.Name}}) (int64,error){
     tag,err:=m.db.Exec(ctx, upsert{{.Name}}Sql,
         {{- range .Fields}}
             create.{{.Name}},
@@ -191,7 +209,7 @@ func (m *{{.Name}}ORM) Upsert(ctx context.Context, create *{{.Name}}) (int64,err
 
 const upsertRet{{.Name}}Sql = `{{.UpsertReturning}}`
 
-func (m *{{.Name}}ORM) UpsertRet(ctx context.Context, create *{{.Name}}) (*{{.Name}},error){
+func (m *{{.Name}}Orm) UpsertRet(ctx context.Context, create *{{.Name}}) (*{{.Name}},error){
     return m.scan(
     m.db.QueryRow(ctx,upsertRet{{.Name}}Sql,
         {{- range .Fields}}
@@ -202,8 +220,8 @@ func (m *{{.Name}}ORM) UpsertRet(ctx context.Context, create *{{.Name}}) (*{{.Na
 }
 
 var ErrUpdate{{.Name}}IsNil = errors.New("{{.Name}} update struct is nil")
-
-func (m *{{.Name}}ORM) Update(ctx context.Context,id string, update *{{.Name}}Update) (int64, error){
+{{- if .HasPk }}
+func (m *{{.Name}}Orm) Update(ctx context.Context,id string, update *{{.Name}}Update) (int64, error){
     if update==nil{
         return 0, ErrUpdate{{.Name}}IsNil
     }
@@ -215,7 +233,7 @@ func (m *{{.Name}}ORM) Update(ctx context.Context,id string, update *{{.Name}}Up
     return tag.RowsAffected(), nil
 }
 
-func (m *{{.Name}}ORM) UpdateRet(ctx context.Context, id string, update *{{.Name}}Update) (*{{.Name}},error){
+func (m *{{.Name}}Orm) UpdateRet(ctx context.Context, id string, update *{{.Name}}Update) (*{{.Name}},error){
     if update==nil{
         return nil,ErrUpdate{{.Name}}IsNil
     }
@@ -223,18 +241,20 @@ func (m *{{.Name}}ORM) UpdateRet(ctx context.Context, id string, update *{{.Name
     return m.scan(m.db.QueryRow(ctx, q, args...))
 }
 
+
 const delete{{.Name}}Sql = "DELETE FROM {{ .Table.Name }} WHERE id = $1"
 
-func (m *{{.Name}}ORM) Delete(ctx context.Context,id string) (int64,error){
+func (m *{{.Name}}Orm) Delete(ctx context.Context,id string) (int64,error){
     tag,err:=m.db.Exec(ctx,delete{{.Name}}Sql,id)
     return tag.RowsAffected(), err
 }
 
 const deleteRet{{.Name}}Sql = "DELETE FROM {{ .Table.Name }} WHERE id = $1 RETURNING *"
 
-func (m *{{.Name}}ORM) DeleteRet(ctx context.Context,id string) (*{{.Name}},error){
+func (m *{{.Name}}Orm) DeleteRet(ctx context.Context,id string) (*{{.Name}},error){
     return m.scan(m.db.QueryRow(ctx,deleteRet{{.Name}}Sql,id))
 }
+{{- end}}
 
 {{end}}
 {{end}}
