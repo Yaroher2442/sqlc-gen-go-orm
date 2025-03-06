@@ -36,10 +36,19 @@ type ormQuery interface {
 
 type {{lowerTitle $Struct.Name}}QueryBuilder struct {
     W *{{lowerTitle $Struct.Name}}WhereClauseBuilder
-    S *{{lowerTitle $Struct.Name}}FieldSetterBuilder
+    U *{{lowerTitle $Struct.Name}}FieldSetterBuilder
+    I *{{lowerTitle $Struct.Name}}FieldInsertBuilder
     A *{{lowerTitle $Struct.Name}}Aliases
 }
 
+func new{{ $Struct.Name}}QueryBuilder() *{{lowerTitle $Struct.Name}}QueryBuilder {
+    return &{{lowerTitle $Struct.Name}}QueryBuilder{
+        W: new{{$Struct.Name}}WhereClauseBuilder(),
+        U: new{{$Struct.Name}}FieldSetterBuilder(),
+        I: new{{$Struct.Name}}FieldInsertBuilder(),
+        A: new{{$Struct.Name}}Aliases(),
+    }
+}
 
 func (b *{{lowerTitle $Struct.Name}}QueryBuilder) Select(
 fields ...{{lowerTitle $Struct.Name}}FieldAlias,
@@ -52,32 +61,43 @@ fields ...{{lowerTitle $Struct.Name}}FieldAlias,
          }
    }
    return &{{lowerTitle $Struct.Name}}SelectQuery{
-       fields: fields,
+        alias:  {{lowerTitle $Struct.Name}}TableAlias,
+        fields: fields,
    }
 }
 func (b *{{lowerTitle $Struct.Name}}QueryBuilder) Update(
 setters ...ormUpdateSetter[{{lowerTitle $Struct.Name}}FieldAlias],
 ) *{{lowerTitle $Struct.Name}}UpdateQuery{
     return &{{lowerTitle $Struct.Name}}UpdateQuery{
+        alias:  {{lowerTitle $Struct.Name}}TableAlias,
         setters: setters,
     }
 }
-func (b *{{lowerTitle $Struct.Name}}QueryBuilder) Delete() *{{lowerTitle $Struct.Name}}DeleteQuery{
-
+func (b *{{lowerTitle $Struct.Name}}QueryBuilder) Delete(
+where ...ormQueryClause[{{lowerTitle $Struct.Name}}FieldAlias],
+) *{{lowerTitle $Struct.Name}}DeleteQuery{
+    return &{{lowerTitle $Struct.Name}}DeleteQuery{
+        alias:  {{lowerTitle $Struct.Name}}TableAlias,
+        whereClauses: where,
+    }
 }
-func (b *{{lowerTitle $Struct.Name}}QueryBuilder) Insert() *{{lowerTitle $Struct.Name}}InsertQuery{
-
+func (b *{{lowerTitle $Struct.Name}}QueryBuilder) Insert(
+setters ...ormInsertSetter[{{lowerTitle $Struct.Name}}FieldAlias],
+) *{{lowerTitle $Struct.Name}}InsertQuery{
+    return &{{lowerTitle $Struct.Name}}InsertQuery{
+        alias:  {{lowerTitle $Struct.Name}}TableAlias,
+        setters: setters,
+    }
 }
 
 // -------------------------{{.Name}}Select-----------------------------------------------------------------------------
 
 // DO NOT SHARE THIS OBJECT BETWEEN GOROUTINES
 type {{lowerTitle $Struct.Name}}SelectQuery struct {
-    table          ormTableAliasImpl
     fields         []{{lowerTitle $Struct.Name}}FieldAlias
     alias          ormTableAlias
     distinctFields []{{lowerTitle $Struct.Name}}FieldAlias
-    whereClauses   []ormQueryClause[{{lowerTitle $Struct.Name}}FieldAlias]
+    whereClauses   []ormQueryClause[must{{$Struct.Name}}FieldAlias]
     groupBy        []{{lowerTitle $Struct.Name}}FieldAlias
     orderByASC     []{{lowerTitle $Struct.Name}}FieldAlias
     orderByDESC    []{{lowerTitle $Struct.Name}}FieldAlias
@@ -102,7 +122,7 @@ func (q *{{lowerTitle $Struct.Name}}SelectQuery) build() (string, []any) {
             sb.WriteString(dfield.String())
         }
     } else {
-        for i, field := range q.distinctFields {
+        for i, field := range q.fields {
             if i > 0 {
                 sb.WriteString(", ")
             }
@@ -110,7 +130,7 @@ func (q *{{lowerTitle $Struct.Name}}SelectQuery) build() (string, []any) {
         }
     }
 
-    sb.WriteString(string(" FROM " + q.table + " AS "))
+    sb.WriteString(" FROM " + q.alias.String() + " AS ")
     sb.WriteString(q.alias.String())
 
     if len(q.whereClauses) > 0 {
@@ -171,17 +191,21 @@ func (q *{{lowerTitle $Struct.Name}}SelectQuery) build() (string, []any) {
     return sb.String(), args
 }
 
-func (q *{{lowerTitle $Struct.Name}}SelectQuery) Fields(
+func (q *{{lowerTitle $Struct.Name}}SelectQuery) Fields(override bool,
 fields ...{{lowerTitle $Struct.Name}}FieldAlias,
 ) *{{lowerTitle $Struct.Name}}SelectQuery {
-    q.fields = fields
+    if override {
+        q.fields = fields
+    }else{
+        q.fields = append(q.fields, fields...)
+    }
     return q
 }
 
 func (q *{{lowerTitle $Struct.Name}}SelectQuery) Distinct(
 fields ...{{lowerTitle $Struct.Name}}FieldAlias,
 ) *{{lowerTitle $Struct.Name}}SelectQuery {
-    q.distinctFields = fields
+    q.distinctFields = append(q.distinctFields, fields...)
     return q
 }
 func (q *{{lowerTitle $Struct.Name}}SelectQuery) Alias(
@@ -191,27 +215,27 @@ alias string,
     return q
 }
 func (q *{{lowerTitle $Struct.Name}}SelectQuery) Where(
-clause ...ormQueryClause[{{lowerTitle $Struct.Name}}FieldAlias],
+clause ...ormQueryClause[must{{$Struct.Name}}FieldAlias],
 ) *{{lowerTitle $Struct.Name}}SelectQuery {
-    q.whereClauses = clause
+    q.whereClauses = append(q.whereClauses, clause...)
     return q
 }
 func (q *{{lowerTitle $Struct.Name}}SelectQuery) GroupBy(
 fields ...{{lowerTitle $Struct.Name}}FieldAlias,
 ) *{{lowerTitle $Struct.Name}}SelectQuery {
-    q.groupBy = fields
+    q.groupBy = append(q.groupBy, fields...)
     return q
 }
 func (q *{{lowerTitle $Struct.Name}}SelectQuery) OrderByASC(
 fields ...{{lowerTitle $Struct.Name}}FieldAlias,
 ) *{{lowerTitle $Struct.Name}}SelectQuery {
-    q.orderByASC = fields
+    q.orderByASC = append(q.orderByASC, fields...)
     return q
 }
 func (q *{{lowerTitle $Struct.Name}}SelectQuery) OrderByDESC(
 fields ...{{lowerTitle $Struct.Name}}FieldAlias,
 ) *{{lowerTitle $Struct.Name}}SelectQuery {
-    q.orderByDESC = fields
+    q.orderByDESC = append(q.orderByDESC, fields...)
     return q
 }
 func (q *{{lowerTitle $Struct.Name}}SelectQuery) Limit(
@@ -292,7 +316,7 @@ func (q *{{lowerTitle $Struct.Name}}UpdateQuery) build() (string, []any) {
 func (q *{{lowerTitle $Struct.Name}}UpdateQuery) Setters(
 setters ...ormUpdateSetter[{{lowerTitle $Struct.Name}}FieldAlias],
 ) *{{lowerTitle $Struct.Name}}UpdateQuery {
-    q.setters = setters
+    q.setters = append(q.setters, setters...)
     return q
 }
 func (q *{{lowerTitle $Struct.Name}}UpdateQuery) Alias(
@@ -304,13 +328,13 @@ alias string,
 func (q *{{lowerTitle $Struct.Name}}UpdateQuery) Where(
 clause ...ormQueryClause[{{lowerTitle $Struct.Name}}FieldAlias],
 ) *{{lowerTitle $Struct.Name}}UpdateQuery {
-    q.whereClauses = clause
+    q.whereClauses = append(q.whereClauses, clause...)
     return q
 }
 func (q *{{lowerTitle $Struct.Name}}UpdateQuery) Returning(
 fields ...{{lowerTitle $Struct.Name}}FieldAlias,
 ) *{{lowerTitle $Struct.Name}}UpdateQuery {
-    q.returningFields = fields
+    q.returningFields = append(q.returningFields, fields...)
     return q
 }
 
@@ -363,7 +387,7 @@ func (q *{{lowerTitle $Struct.Name}}DeleteQuery) build() (string, []any) {
 func (q *{{lowerTitle $Struct.Name}}DeleteQuery) Where(
 clause ...ormQueryClause[{{lowerTitle $Struct.Name}}FieldAlias],
 ) *{{lowerTitle $Struct.Name}}DeleteQuery {
-    q.whereClauses = clause
+    q.whereClauses = append(q.whereClauses, clause...)
     return q
 }
 func (q *{{lowerTitle $Struct.Name}}DeleteQuery) Alias(
@@ -375,7 +399,7 @@ alias string,
 func (q *{{lowerTitle $Struct.Name}}DeleteQuery) Returning(
 fields ...{{lowerTitle $Struct.Name}}FieldAlias,
 ) *{{lowerTitle $Struct.Name}}DeleteQuery {
-    q.returningFields = fields
+    q.returningFields = append(q.returningFields, fields...)
     return q
 }
 // -------------------------{{.Name}}InsertQuery------------------------------------------------------------------------
@@ -452,7 +476,7 @@ func (q *{{lowerTitle $Struct.Name}}InsertQuery) build() (string, []any) {
 func (q *{{lowerTitle $Struct.Name}}InsertQuery) Set(
 setters ...ormInsertSetter[{{lowerTitle $Struct.Name}}FieldAlias],
 ) *{{lowerTitle $Struct.Name}}InsertQuery {
-    q.setters = setters
+    q.setters = append(q.setters, setters...)
     return q
 }
 func (q *{{lowerTitle $Struct.Name}}InsertQuery) Alias(
@@ -464,13 +488,13 @@ alias string,
 func (q *{{lowerTitle $Struct.Name}}InsertQuery) Returning(
 fields ...{{lowerTitle $Struct.Name}}FieldAlias,
 ) *{{lowerTitle $Struct.Name}}InsertQuery {
-    q.returningFields = fields
+    q.returningFields = append(q.returningFields, fields...)
     return q
 }
 func (q *{{lowerTitle $Struct.Name}}InsertQuery) OnConflictExcluded(
 fields ...{{lowerTitle $Struct.Name}}FieldAlias,
 ) *{{lowerTitle $Struct.Name}}InsertQuery {
-    q.onConflictExcluded = fields
+    q.onConflictExcluded = append(q.onConflictExcluded, fields...)
     return q
 }
 {{end}}

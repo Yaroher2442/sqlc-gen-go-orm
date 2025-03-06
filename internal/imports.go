@@ -119,9 +119,9 @@ func (i *importer) Imports(filename string) [][]ImportSpec {
 	case ormFileName:
 		return mergeImports(i.ormImports())
 	case ormQueryFile:
-		return mergeImports(i.ormImports())
+		return mergeImports(i.ormQueryImports())
 	case ormFieldsFile:
-		return mergeImports(i.ormImports())
+		return mergeImports(i.ormFieldsImports())
 
 	default:
 		return mergeImports(i.queryImports(filename))
@@ -453,17 +453,36 @@ func (i *importer) copyfromImports() fileImports {
 func (i *importer) ormImports() fileImports {
 	return fileImports{
 		Std: []ImportSpec{
-			{Path: "context"},
-			{Path: "errors"},
-			{Path: "fmt"},
-			{Path: "strings"},
+			//{Path: "context"},
+			//{Path: "errors"},
+			//{Path: "fmt"},
+			//{Path: "strings"},
 		},
 		Dep: []ImportSpec{
-			{Path: "github.com/aarondl/opt/omit"},
-			{Path: "github.com/jackc/pgx/v5/pgtype"},
-			{Path: "github.com/jackc/pgx/v5"},
-			{Path: "github.com/jackc/pgx/v5/pgconn"},
+			//{Path: "github.com/aarondl/opt/omit"},
+			//{Path: "github.com/jackc/pgx/v5/pgtype"},
+			//{Path: "github.com/jackc/pgx/v5"},
+			//{Path: "github.com/jackc/pgx/v5/pgconn"},
 		},
+	}
+}
+
+func (i *importer) ormFieldsImports() fileImports {
+	return fileImports{
+		Std: []ImportSpec{},
+		Dep: []ImportSpec{
+			{Path: "github.com/jackc/pgx/v5/pgtype"},
+		},
+	}
+}
+func (i *importer) ormQueryImports() fileImports {
+	return fileImports{
+		Std: []ImportSpec{
+			{Path: "fmt"},
+			{Path: "strings"},
+			{Path: "strconv"},
+		},
+		Dep: []ImportSpec{},
 	}
 }
 
