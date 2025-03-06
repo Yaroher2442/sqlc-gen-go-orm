@@ -265,6 +265,19 @@ import (
 
 {{define "ormQueryFile"}}
 {{if .SQLDriver.IsPGX }}
+    {{- template "ormQueryCodePgx" .}}
+{{end}}
+{{end}}
+
+
+{{define "ormFieldsFile"}}
+{{if .SQLDriver.IsPGX }}
     {{- template "ormFieldsCodePgx" .}}
+{{end}}
+{{end}}
+
+{{define "ormTableFile"}}
+{{if .SQLDriver.IsPGX }}
+    {{- template "ormTableCodePgx" .}}
 {{end}}
 {{end}}

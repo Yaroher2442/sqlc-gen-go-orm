@@ -102,6 +102,7 @@ func (i *importer) Imports(filename string) [][]ImportSpec {
 		batchFileName = i.Options.OutputBatchFileName
 	}
 	ormFileName := "orm.go"
+	ormQueryFile := "orm_query.go"
 	ormFieldsFile := "orm_fields.go"
 
 	switch filename {
@@ -116,6 +117,8 @@ func (i *importer) Imports(filename string) [][]ImportSpec {
 	case batchFileName:
 		return mergeImports(i.batchImports())
 	case ormFileName:
+		return mergeImports(i.ormImports())
+	case ormQueryFile:
 		return mergeImports(i.ormImports())
 	case ormFieldsFile:
 		return mergeImports(i.ormImports())

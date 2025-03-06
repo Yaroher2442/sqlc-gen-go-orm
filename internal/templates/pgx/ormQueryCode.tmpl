@@ -1,4 +1,4 @@
-{{define "ormFieldsCodePgx"}}
+{{define "ormQueryCodePgx"}}
 {{if .BuildTags}}
 //go:build {{.BuildTags}}
 
@@ -6,15 +6,12 @@
 {{if not .OmitSqlcVersion}}// versions:
 //   sqlc {{.SqlcVersion}}
 {{end}}
-// QO - query object
 // QB - query builder
 // QC - query clause
 // QT - query templater
-// FT - field templater
-// F - field
-// FC - filed clause
-// FCT - filed clause templater
 // C - clause
+// SQO - select query object
+
 
 package {{.Package}}
 {{ if hasImports .SourceName }}
@@ -36,7 +33,7 @@ type (
     c interface {
         sql() (string, []any)
     }
-    QO interface {
+    SQO interface {
         Build() (string, []any, error)
     }
 )
@@ -49,65 +46,81 @@ type must{{$Struct.Name}}Query interface {
     must{{$Struct.Name}}Query()
 }
 
-type {{lowerTitle .Name}}QB struct {
-    C *{{lowerTitle .Name}}QT
-    F *{{lowerTitle .Name}}FT
+type (
+    {{lowerTitle $Struct.Name}}FT struct {
+        {{ range $idx,$field := .Fields}}
+        {{.Name}} must{{$Struct.Name}}FA
+        {{- end}}
+    }
+
+    {{lowerTitle .Name}}QT struct {
+     {{- range .Fields}}
+        {{.Name}} {{ lowerTitle $Struct.Name }}{{.Name}}FCT
+     {{- end}}
+    }
+
+    {{lowerTitle .Name}}QB struct {
+        C *{{lowerTitle .Name}}QT
+        F *{{lowerTitle .Name}}FT
+        A ormTA
+    }
+
+)
+
+
+func (*{{lowerTitle .Name}}QB) Select() *{{lowerTitle .Name}}SQO {
+    return &{{lowerTitle .Name}}SQO{}
 }
 
-func (b *{{lowerTitle .Name}}QB) New() *{{lowerTitle .Name}}QO {
-    return &{{lowerTitle .Name}}QO{}
-}
 
 // DO NOT SHARE THIS OBJECT BETWEEN GOROUTINES
-type {{lowerTitle .Name}}QO struct {
-    distinctFields []must{{$Struct.Name}}F
-    fields         []must{{$Struct.Name}}F
+type {{lowerTitle .Name}}SQO struct {
+    alias          ormTA
+    distinctFields []must{{$Struct.Name}}FA
+    fields         []must{{$Struct.Name}}FA
     whereClauses   []must{{$Struct.Name}}C
-    groupBy        []must{{$Struct.Name}}F
-    orderByASC     []must{{$Struct.Name}}F
-    orderByDESC    []must{{$Struct.Name}}F
+    groupBy        []must{{$Struct.Name}}FA
+    orderByASC     []must{{$Struct.Name}}FA
+    orderByDESC    []must{{$Struct.Name}}FA
     limit          int
     offset         int
 }
 
-func (*{{lowerTitle .Name}}QO) mustImplement() {}
+func (*{{lowerTitle .Name}}SQO) mustImplement() {}
 
-func (o *{{lowerTitle .Name}}QO) Distinct(fields ...must{{$Struct.Name}}F) *{{lowerTitle .Name}}QO {
+func (o *{{lowerTitle .Name}}SQO) Alias(alias string) *{{lowerTitle .Name}}SQO {
+    o.alias = ormTA(alias)
+    return o
+}
+func (o *{{lowerTitle .Name}}SQO) Distinct(fields ...must{{$Struct.Name}}FA) *{{lowerTitle .Name}}SQO {
     o.distinctFields = append(o.distinctFields, fields...)
     return o
 }
-
-func (o *{{lowerTitle .Name}}QO) Fields(query ...must{{$Struct.Name}}F) *{{lowerTitle .Name}}QO {
+func (o *{{lowerTitle .Name}}SQO) Fields(query ...must{{$Struct.Name}}FA) *{{lowerTitle .Name}}SQO {
     o.fields = append(o.fields, query...)
     return o
 }
-
-func (o *{{lowerTitle .Name}}QO) Where(query ...must{{$Struct.Name}}C) *{{lowerTitle .Name}}QO {
+func (o *{{lowerTitle .Name}}SQO) Where(query ...must{{$Struct.Name}}C) *{{lowerTitle .Name}}SQO {
     o.whereClauses = append(o.whereClauses, query...)
     return o
 }
-
-func (o *{{lowerTitle .Name}}QO) GroupBy(query ...must{{$Struct.Name}}F) *{{lowerTitle .Name}}QO {
+func (o *{{lowerTitle .Name}}SQO) GroupBy(query ...must{{$Struct.Name}}FA) *{{lowerTitle .Name}}SQO {
     o.groupBy = append(o.groupBy, query...)
     return o
 }
-
-func (o *{{lowerTitle .Name}}QO) Limit(limit int) *{{lowerTitle .Name}}QO {
+func (o *{{lowerTitle .Name}}SQO) Limit(limit int) *{{lowerTitle .Name}}SQO {
     o.limit = limit
     return o
 }
-
-func (o *{{lowerTitle .Name}}QO) Offset(offset int) *{{lowerTitle .Name}}QO {
+func (o *{{lowerTitle .Name}}SQO) Offset(offset int) *{{lowerTitle .Name}}SQO {
     o.offset = offset
     return o
 }
-
-func (o *{{lowerTitle .Name}}QO) OrderByASC(fields ...must{{$Struct.Name}}F) *{{lowerTitle .Name}}QO {
+func (o *{{lowerTitle .Name}}SQO) OrderByASC(fields ...must{{$Struct.Name}}FA) *{{lowerTitle .Name}}SQO {
     o.orderByASC = append(o.orderByASC, fields...)
     return o
 }
-
-func (o *{{lowerTitle .Name}}QO) OrderByDESC(fields ...must{{$Struct.Name}}F) *{{lowerTitle .Name}}QO {
+func (o *{{lowerTitle .Name}}SQO) OrderByDESC(fields ...must{{$Struct.Name}}FA) *{{lowerTitle .Name}}SQO {
     o.orderByDESC = append(o.orderByDESC, fields...)
     return o
 }
@@ -138,12 +151,6 @@ type (
         prefix string
         query ormQuery
     }
-
-    {{lowerTitle .Name}}QT struct {
-         {{- range .Fields}}
-            {{.Name}} {{ lowerTitle $Struct.Name }}{{.Name}}FCT
-         {{- end}}
-    }
 )
 
 func (q *{{lowerTitle $Struct.Name}}QT) Or(left, right *{{lowerTitle $Struct.Name}}FC) *{{lowerTitle $Struct.Name}}OrQC {
@@ -152,21 +159,18 @@ func (q *{{lowerTitle $Struct.Name}}QT) Or(left, right *{{lowerTitle $Struct.Nam
         right: right,
     }
 }
-
 func (q *{{lowerTitle $Struct.Name}}QT) And(left, right *{{lowerTitle $Struct.Name}}FC) *{{lowerTitle $Struct.Name}}AndQC {
     return &{{lowerTitle $Struct.Name}}AndQC{
         left: left,
         right: right,
     }
 }
-
 func (q *{{lowerTitle $Struct.Name}}QT) SubQ(prefix string, query ormQuery) *{{lowerTitle $Struct.Name}}SubQC {
     return &{{lowerTitle $Struct.Name}}SubQC{
         prefix: prefix,
         query: query,
     }
 }
-
 func (q *{{lowerTitle $Struct.Name}}QT) Raw(prefix string, sql string, args ...any) *{{lowerTitle $Struct.Name}}RawQC {
     return &{{lowerTitle $Struct.Name}}RawQC{
         prefix: prefix,
@@ -174,86 +178,6 @@ func (q *{{lowerTitle $Struct.Name}}QT) Raw(prefix string, sql string, args ...a
         val: args,
     }
 }
-
-type (
-    must{{$Struct.Name}}F interface {
-        must{{$Struct.Name}}F()
-    }
-
-    {{lowerTitle $Struct.Name}}F string
-
-    {{lowerTitle $Struct.Name}}FT struct {
-    {{ range $idx,$field := .Fields}}
-        {{.Name}} {{lowerTitle $Struct.Name}}F
-    {{- end}}
-    }
-)
-
-
-func (f {{lowerTitle $Struct.Name}}F)  must{{$Struct.Name}}F() {}
-
-const (
-{{lowerTitle $Struct.Name}}ALL {{lowerTitle $Struct.Name}}F = "all"
-{{ range $idx,$field := .Fields}}
-    {{lowerTitle $Struct.Name}}{{.Name}} {{lowerTitle $Struct.Name}}F = "{{dbName $field.Name}}"
-{{- end}}
-)
-
-type (
-    {{ lowerTitle .Name }}FC struct {
-        must{{$Struct.Name}}C
-        operation string
-        field {{ lowerTitle $Struct.Name}}F
-        val []any
-    }
-
-    {{ lowerTitle .Name }}SubQFC struct {
-        must{{$Struct.Name}}C
-        operation string
-        query ormQuery
-    }
-    {{ range $idx,$field := .Fields}}
-    {{ lowerTitle $Struct.Name }}{{.Name}}FCT struct {}
-    {{- end}}
-)
-
-{{ range $idx,$field := .Fields}}
-{{- range $action, $sql := .SqlCanAction}}
-{{- if contains $action "BETWEEN" }}
-func (b *{{ lowerTitle $Struct.Name }}{{$field.Name}}FCT) {{- camel $action}}(start {{$field.Type}},end {{$field.Type}}) *{{ lowerTitle $Struct.Name }}FC {
-    return &{{ lowerTitle $Struct.Name }}FC{
-        operation: "{{ $sql }}",
-        field: {{lowerTitle $Struct.Name}}{{$field.Name}},
-        val: []any{start,end},
-    }
-}
-{{- else}}
-func (b *{{ lowerTitle $Struct.Name }}{{$field.Name}}FCT) {{- camel $action}}(val {{$field.Type}}) *{{ lowerTitle $Struct.Name }}FC {
-    return &{{ lowerTitle $Struct.Name }}FC{
-        operation: "{{ $sql }}",
-        field: {{lowerTitle $Struct.Name}}{{$field.Name}},
-        val: []any{val},
-    }
-}
-{{- end}}
-{{- end}}
-func (b *{{ lowerTitle $Struct.Name }}{{$field.Name}}FCT) SubQ(operation string,query ormQuery) *{{ lowerTitle $Struct.Name }}SubQFC {
-    return &{{ lowerTitle $Struct.Name }}SubQFC{
-        operation: operation,
-        query: query,
-    }
-}
-
-func (b *{{ lowerTitle $Struct.Name }}{{$field.Name}}FCT) Raw(operation string,sql string, args ...any) *{{ lowerTitle $Struct.Name }}FC {
-    return &{{ lowerTitle $Struct.Name }}FC{
-        field: "{{dbName $field.Name}}",
-        operation: fmt.Sprintf("%s %s",operation, sql),
-        val: args,
-    }
-}
-
-{{- end}}
-
 {{end}}
 
 {{end}}
