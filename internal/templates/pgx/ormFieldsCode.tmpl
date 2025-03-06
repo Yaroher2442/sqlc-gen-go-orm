@@ -28,9 +28,14 @@ type ormQueryClause[T ormFieldAlias] interface {
    build(ta ormTableAlias) (string, []any)
 }
 
-type ormUpdateSetter interface {
+type ormUpdateSetter[T ormFieldAlias] interface {
     mustOrmUpdateSetter()
     build(ta ormTableAlias) (string, []any)
+}
+
+type ormInsertSetter[T ormFieldAlias] interface {
+    mustOrmInsertSetter()
+    build(ta ormTableAlias) (string, any)
 }
 
 
@@ -70,6 +75,10 @@ type (
         rawSql string
         val []any
     }
+    fieldInsertSetter[T ormFieldAlias, V any] struct {
+        field T
+        val V
+    }
 )
 
 func (b *whereClause[T]) mustOrmQueryClause() {}
@@ -107,6 +116,11 @@ func (b *fieldsSubQSetter[T]) build(ta ormTableAlias) (string, []any) {
 func (b *fieldsRawQSetter[T]) mustOrmUpdateSetter() {}
 func (b *fieldsRawQSetter[T]) build(ta ormTableAlias) (string, []any) {
     return ta.String() + "." + b.field.String() + " = (" + b.rawSql+")", b.val
+}
+
+func (b *fieldInsertSetter[T, V]) mustOrmInsertSetter() {}
+func (b *fieldInsertSetter[T, V]) build(ta ormTableAlias) (string, any) {
+    return ta.String() + "." + b.field.String(), b.val
 }
 
 {{- range .Structs}}
@@ -199,12 +213,34 @@ val {{$field.Type}},
 {{- end}}
 
 // -------------------------Set{{.Name}}--------------------------------------------------------------------------------------
+type {{lowerTitle $Struct.Name}}FieldInsertBuilder struct {
+    {{ range $idx,$field := .Fields}}
+    {{.Name}} *{{lowerTitle $Struct.Name}}{{.Name}}FieldInsertBuilder
+    {{- end}}
+}
+
+{{ range $idx,$field := .Fields}}
+
+type {{lowerTitle $Struct.Name}}{{.Name}}FieldInsertBuilder struct {}
+
+
+func (b *{{lowerTitle $Struct.Name}}{{.Name}}FieldInsertBuilder) Set(
+val {{$field.Type}},
+) *fieldInsertSetter[{{lowerTitle $Struct.Name}}FieldAlias,{{$field.Type}}] {
+    return &fieldInsertSetter[{{lowerTitle $Struct.Name}}FieldAlias,{{$field.Type}}]{
+        field: {{lowerTitle $Struct.Name}}{{.Name}},
+        val: val,
+    }
+}
+
+{{- end}}
+
+
 type {{lowerTitle $Struct.Name}}FieldSetterBuilder struct {
     {{ range $idx,$field := .Fields}}
     {{.Name}} *{{lowerTitle $Struct.Name}}{{.Name}}FieldSetterBuilder
     {{- end}}
 }
-
 
 {{ range $idx,$field := .Fields}}
 type {{lowerTitle $Struct.Name}}{{.Name}}FieldSetterBuilder struct {}
@@ -236,7 +272,6 @@ args ...any,
     }
 }
 {{- end}}
-
 
 {{- end}}
 
