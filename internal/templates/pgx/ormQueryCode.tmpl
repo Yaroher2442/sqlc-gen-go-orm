@@ -13,7 +13,7 @@
 // FT - field templater
 // F - field
 // FC - filed clause
-// FCB - filed clause builder
+// FCT - filed clause templater
 // C - clause
 
 package {{.Package}}
@@ -26,9 +26,20 @@ import (
 )
 {{end}}
 
-type ormQuery interface {
-    mustImplement()
-}
+type (
+    ormQuery interface {
+        mustImplement()
+    }
+    f interface {
+        name()
+    }
+    c interface {
+        sql() (string, []any)
+    }
+    QO interface {
+        Build() (string, []any, error)
+    }
+)
 
 {{range .Structs}}
 {{$Struct:= .}}
@@ -39,7 +50,8 @@ type must{{$Struct.Name}}Query interface {
 }
 
 type {{lowerTitle .Name}}QB struct {
-    T *{{lowerTitle .Name}}QT
+    C *{{lowerTitle .Name}}QT
+    F *{{lowerTitle .Name}}FT
 }
 
 func (b *{{lowerTitle .Name}}QB) New() *{{lowerTitle .Name}}QO {
@@ -48,9 +60,21 @@ func (b *{{lowerTitle .Name}}QB) New() *{{lowerTitle .Name}}QO {
 
 // DO NOT SHARE THIS OBJECT BETWEEN GOROUTINES
 type {{lowerTitle .Name}}QO struct {
-    fields      []must{{$Struct.Name}}F
-    whereClauses []must{{$Struct.Name}}C
-    groupBy     []must{{$Struct.Name}}F
+    distinctFields []must{{$Struct.Name}}F
+    fields         []must{{$Struct.Name}}F
+    whereClauses   []must{{$Struct.Name}}C
+    groupBy        []must{{$Struct.Name}}F
+    orderByASC     []must{{$Struct.Name}}F
+    orderByDESC    []must{{$Struct.Name}}F
+    limit          int
+    offset         int
+}
+
+func (*{{lowerTitle .Name}}QO) mustImplement() {}
+
+func (o *{{lowerTitle .Name}}QO) Distinct(fields ...must{{$Struct.Name}}F) *{{lowerTitle .Name}}QO {
+    o.distinctFields = append(o.distinctFields, fields...)
+    return o
 }
 
 func (o *{{lowerTitle .Name}}QO) Fields(query ...must{{$Struct.Name}}F) *{{lowerTitle .Name}}QO {
@@ -65,6 +89,26 @@ func (o *{{lowerTitle .Name}}QO) Where(query ...must{{$Struct.Name}}C) *{{lowerT
 
 func (o *{{lowerTitle .Name}}QO) GroupBy(query ...must{{$Struct.Name}}F) *{{lowerTitle .Name}}QO {
     o.groupBy = append(o.groupBy, query...)
+    return o
+}
+
+func (o *{{lowerTitle .Name}}QO) Limit(limit int) *{{lowerTitle .Name}}QO {
+    o.limit = limit
+    return o
+}
+
+func (o *{{lowerTitle .Name}}QO) Offset(offset int) *{{lowerTitle .Name}}QO {
+    o.offset = offset
+    return o
+}
+
+func (o *{{lowerTitle .Name}}QO) OrderByASC(fields ...must{{$Struct.Name}}F) *{{lowerTitle .Name}}QO {
+    o.orderByASC = append(o.orderByASC, fields...)
+    return o
+}
+
+func (o *{{lowerTitle .Name}}QO) OrderByDESC(fields ...must{{$Struct.Name}}F) *{{lowerTitle .Name}}QO {
+    o.orderByDESC = append(o.orderByDESC, fields...)
     return o
 }
 
@@ -97,9 +141,8 @@ type (
 
     {{lowerTitle .Name}}QT struct {
          {{- range .Fields}}
-            {{.Name}} {{ lowerTitle $Struct.Name }}{{.Name}}FCB
+            {{.Name}} {{ lowerTitle $Struct.Name }}{{.Name}}FCT
          {{- end}}
-         F {{lowerTitle $Struct.Name}}FT
     }
 )
 
@@ -170,14 +213,14 @@ type (
         query ormQuery
     }
     {{ range $idx,$field := .Fields}}
-    {{ lowerTitle $Struct.Name }}{{.Name}}FCB struct {}
+    {{ lowerTitle $Struct.Name }}{{.Name}}FCT struct {}
     {{- end}}
 )
 
 {{ range $idx,$field := .Fields}}
 {{- range $action, $sql := .SqlCanAction}}
 {{- if contains $action "BETWEEN" }}
-func (b *{{ lowerTitle $Struct.Name }}{{$field.Name}}FCB) {{- camel $action}}(start {{$field.Type}},end {{$field.Type}}) *{{ lowerTitle $Struct.Name }}FC {
+func (b *{{ lowerTitle $Struct.Name }}{{$field.Name}}FCT) {{- camel $action}}(start {{$field.Type}},end {{$field.Type}}) *{{ lowerTitle $Struct.Name }}FC {
     return &{{ lowerTitle $Struct.Name }}FC{
         operation: "{{ $sql }}",
         field: {{lowerTitle $Struct.Name}}{{$field.Name}},
@@ -185,7 +228,7 @@ func (b *{{ lowerTitle $Struct.Name }}{{$field.Name}}FCB) {{- camel $action}}(st
     }
 }
 {{- else}}
-func (b *{{ lowerTitle $Struct.Name }}{{$field.Name}}FCB) {{- camel $action}}(val {{$field.Type}}) *{{ lowerTitle $Struct.Name }}FC {
+func (b *{{ lowerTitle $Struct.Name }}{{$field.Name}}FCT) {{- camel $action}}(val {{$field.Type}}) *{{ lowerTitle $Struct.Name }}FC {
     return &{{ lowerTitle $Struct.Name }}FC{
         operation: "{{ $sql }}",
         field: {{lowerTitle $Struct.Name}}{{$field.Name}},
@@ -194,14 +237,14 @@ func (b *{{ lowerTitle $Struct.Name }}{{$field.Name}}FCB) {{- camel $action}}(va
 }
 {{- end}}
 {{- end}}
-func (b *{{ lowerTitle $Struct.Name }}{{$field.Name}}FCB) SubQ(operation string,query ormQuery) *{{ lowerTitle $Struct.Name }}SubQFC {
+func (b *{{ lowerTitle $Struct.Name }}{{$field.Name}}FCT) SubQ(operation string,query ormQuery) *{{ lowerTitle $Struct.Name }}SubQFC {
     return &{{ lowerTitle $Struct.Name }}SubQFC{
         operation: operation,
         query: query,
     }
 }
 
-func (b *{{ lowerTitle $Struct.Name }}{{$field.Name}}FCB) Raw(operation string,sql string, args ...any) *{{ lowerTitle $Struct.Name }}FC {
+func (b *{{ lowerTitle $Struct.Name }}{{$field.Name}}FCT) Raw(operation string,sql string, args ...any) *{{ lowerTitle $Struct.Name }}FC {
     return &{{ lowerTitle $Struct.Name }}FC{
         field: "{{dbName $field.Name}}",
         operation: fmt.Sprintf("%s %s",operation, sql),
