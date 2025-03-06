@@ -145,65 +145,40 @@ func toLowerCase(str string) string {
 type ActionCode struct {
 }
 
+func typeOPToMap(flags OpFlags) map[string]string {
+	mp := make(map[string]string)
+	fl := GetFlags(flags)
+	for i := 0; i < len(fl); i++ {
+		mp[fl[i].Name()] = fl[i].String()
+	}
+	return mp
+}
+
 func (gf Field) SqlCanAction() map[string]string {
-	// Операции для типа bool
-	if gf.Type == "bool" {
-		mp := map[string]string{
-			"EQ":  "=",
-			"NEQ": "<>",
-		}
-		if strings.Contains(gf.Type, "*") {
-			mp["IS NULL"] = "IS NULL"
-			mp["IS NOT NULL"] = "IS NOT NULL"
-		}
-		return mp
+	var tp OpFlags
+	if strings.Contains(gf.Type, "string") {
+		tp = StringOps
 	}
-	actions := map[string]string{
-		"EQ":  "=",
-		"NEQ": "<>",
-		"GT":  ">",
-		"GTE": ">=",
-		"LT":  "<",
-		"LTE": "<=",
+	if strings.Contains(gf.Type, "int") {
+		tp = IntOps
 	}
-
-	// Операции для типа string
-	if gf.Type == "string" {
-		actions["LIKE"] = "LIKE"
-		actions["ILIKE"] = "ILIKE"
-		actions["NOT LIKE"] = "NOT LIKE"
-		actions["NOT ILIKE"] = "NOT ILIKE"
-		actions["SIMILAR TO"] = "SIMILAR TO"
+	if strings.Contains(gf.Type, "float") {
+		tp = FloatOps
 	}
-
-	// Операции для типов, содержащих "*" (например, указатели)
-	if strings.Contains(gf.Type, "*") {
-		actions["IS NULL"] = "IS NULL"
-		actions["IS NOT NULL"] = "IS NOT NULL"
+	if strings.Contains(gf.Type, "bool") {
+		tp = BoolOps
 	}
-
-	// Операции для типов, содержащих "time" (например, временные типы)
 	if strings.Contains(strings.ToLower(gf.Type), "time") {
-		actions["BETWEEN"] = "BETWEEN"
-		actions["NOT BETWEEN"] = "NOT BETWEEN"
+		tp = TimeOps
 	}
-
-	// Операции для числовых и временных типов
-	if gf.Type == "int" || gf.Type == "float" || strings.Contains(gf.Type, "time") {
-		actions["BETWEEN"] = "BETWEEN"
-		actions["NOT BETWEEN"] = "NOT BETWEEN"
+	if strings.Contains(gf.Type, "[]") {
+		tp = ArrayOps
+		if gf.Type == "[]byte" {
+			tp = JsonOps
+		}
 	}
-
-	// Операции для типов, поддерживающих IN и NOT IN
-	if gf.Type == "int" || gf.Type == "float" || gf.Type == "string" {
-		actions["IN"] = "IN"
-		actions["NOT IN"] = "NOT IN"
+	if strings.Contains(gf.Type, "*") {
+		tp |= NullMask
 	}
-
-	if strings.Contains(gf.Type, "[]") && gf.Type != "[]byte" {
-		actions["IN"] = "IN"
-		actions["NOT IN"] = "NOT IN"
-	}
-
-	return actions
+	return typeOPToMap(tp)
 }

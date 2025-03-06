@@ -9,10 +9,10 @@
 // QB - query builder
 // QC - query clause
 // QT - query templater
+// UT - update templater
 // C - clause
 // SQO - select query object
-
-
+// UQO - update query object
 package {{.Package}}
 {{ if hasImports .SourceName }}
 import (
@@ -23,161 +23,217 @@ import (
 )
 {{end}}
 
-type (
-    ormQuery interface {
-        mustImplement()
-    }
-    f interface {
-        name()
-    }
-    c interface {
-        sql() (string, []any)
-    }
-    SQO interface {
-        Build() (string, []any, error)
-    }
-)
-
-{{range .Structs}}
-{{$Struct:= .}}
-
-
-type must{{$Struct.Name}}Query interface {
-    must{{$Struct.Name}}Query()
+type ormQuery interface {
+    mustOrmQuery()
+    build() (string, []any)
 }
 
-type (
-    {{lowerTitle $Struct.Name}}FT struct {
-        {{ range $idx,$field := .Fields}}
-        {{.Name}} must{{$Struct.Name}}FA
-        {{- end}}
-    }
 
-    {{lowerTitle .Name}}QT struct {
-     {{- range .Fields}}
-        {{.Name}} {{ lowerTitle $Struct.Name }}{{.Name}}FCT
-     {{- end}}
-    }
+{{- range .Structs}}
+// -------------------------{{.Name}}--------------------------------------------------------------------------------------
 
-    {{lowerTitle .Name}}QB struct {
-        C *{{lowerTitle .Name}}QT
-        F *{{lowerTitle .Name}}FT
-        A ormTA
-    }
+{{- $Struct:= .}}
 
-)
-
-
-func (*{{lowerTitle .Name}}QB) Select() *{{lowerTitle .Name}}SQO {
-    return &{{lowerTitle .Name}}SQO{}
+type {{lowerTitle $Struct.Name}}QueryBuilder struct {
+    W *{{lowerTitle $Struct.Name}}WhereClauseBuilder
+    S *{{lowerTitle $Struct.Name}}FieldSetterBuilder
+    A *{{lowerTitle $Struct.Name}}Aliases
 }
 
+
+func (b *{{lowerTitle $Struct.Name}}QueryBuilder) Select(fields ...{{lowerTitle $Struct.Name}}FieldAlias) *{{lowerTitle $Struct.Name}}SelectQuery{
+   if len(fields) == 0 {
+        fields = []{{lowerTitle $Struct.Name}}FieldAlias {
+             {{- range $idx,$field := .Fields}}
+             {{lowerTitle $Struct.Name}}{{.Name}},
+             {{- end}}
+         }
+   }
+   return &{{lowerTitle $Struct.Name}}SelectQuery{
+       fields: fields,
+   }
+}
+func (b *{{lowerTitle $Struct.Name}}QueryBuilder) Update() *{{lowerTitle $Struct.Name}}UpdateQuery{
+
+}
+func (b *{{lowerTitle $Struct.Name}}QueryBuilder) Delete() *{{lowerTitle $Struct.Name}}DeleteQuery{
+
+}
+func (b *{{lowerTitle $Struct.Name}}QueryBuilder) Insert() *{{lowerTitle $Struct.Name}}InsertQuery{
+
+}
 
 // DO NOT SHARE THIS OBJECT BETWEEN GOROUTINES
-type {{lowerTitle .Name}}SQO struct {
-    alias          ormTA
-    distinctFields []must{{$Struct.Name}}FA
-    fields         []must{{$Struct.Name}}FA
-    whereClauses   []must{{$Struct.Name}}C
-    groupBy        []must{{$Struct.Name}}FA
-    orderByASC     []must{{$Struct.Name}}FA
-    orderByDESC    []must{{$Struct.Name}}FA
+type {{lowerTitle $Struct.Name}}SelectQuery struct {
+    table          ormTableAliasImpl
+    fields         []{{lowerTitle $Struct.Name}}FieldAlias
+    alias          ormTableAlias
+    distinctFields []{{lowerTitle $Struct.Name}}FieldAlias
+    whereClauses   []ormQueryClause[{{lowerTitle $Struct.Name}}FieldAlias]
+    groupBy        []{{lowerTitle $Struct.Name}}FieldAlias
+    orderByASC     []{{lowerTitle $Struct.Name}}FieldAlias
+    orderByDESC    []{{lowerTitle $Struct.Name}}FieldAlias
     limit          int
     offset         int
 }
 
-func (*{{lowerTitle .Name}}SQO) mustImplement() {}
 
-func (o *{{lowerTitle .Name}}SQO) Alias(alias string) *{{lowerTitle .Name}}SQO {
-    o.alias = ormTA(alias)
-    return o
-}
-func (o *{{lowerTitle .Name}}SQO) Distinct(fields ...must{{$Struct.Name}}FA) *{{lowerTitle .Name}}SQO {
-    o.distinctFields = append(o.distinctFields, fields...)
-    return o
-}
-func (o *{{lowerTitle .Name}}SQO) Fields(query ...must{{$Struct.Name}}FA) *{{lowerTitle .Name}}SQO {
-    o.fields = append(o.fields, query...)
-    return o
-}
-func (o *{{lowerTitle .Name}}SQO) Where(query ...must{{$Struct.Name}}C) *{{lowerTitle .Name}}SQO {
-    o.whereClauses = append(o.whereClauses, query...)
-    return o
-}
-func (o *{{lowerTitle .Name}}SQO) GroupBy(query ...must{{$Struct.Name}}FA) *{{lowerTitle .Name}}SQO {
-    o.groupBy = append(o.groupBy, query...)
-    return o
-}
-func (o *{{lowerTitle .Name}}SQO) Limit(limit int) *{{lowerTitle .Name}}SQO {
-    o.limit = limit
-    return o
-}
-func (o *{{lowerTitle .Name}}SQO) Offset(offset int) *{{lowerTitle .Name}}SQO {
-    o.offset = offset
-    return o
-}
-func (o *{{lowerTitle .Name}}SQO) OrderByASC(fields ...must{{$Struct.Name}}FA) *{{lowerTitle .Name}}SQO {
-    o.orderByASC = append(o.orderByASC, fields...)
-    return o
-}
-func (o *{{lowerTitle .Name}}SQO) OrderByDESC(fields ...must{{$Struct.Name}}FA) *{{lowerTitle .Name}}SQO {
-    o.orderByDESC = append(o.orderByDESC, fields...)
-    return o
-}
+func (*{{lowerTitle $Struct.Name}}SelectQuery) mustOrmQuery()  {}
+func (q *{{lowerTitle $Struct.Name}}SelectQuery) build() (string, []any) {
+    var sb strings.Builder
+    var args []interface{}
+    paramIndex := 1
 
-type (
-    must{{$Struct.Name}}C interface {
-        must{{$Struct.Name}}C()
-    }
-
-    {{lowerTitle $Struct.Name}}OrQC struct {
-            must{{$Struct.Name}}C
-            left, right *{{lowerTitle .Name}}FC
+    sb.WriteString("SELECT ")
+    if len(q.distinctFields) > 0 {
+        sb.WriteString("DISTINCT ")
+        for i, dfield := range q.distinctFields {
+            if i > 0 {
+                sb.WriteString(", ")
+            }
+            sb.WriteString(dfield.String())
         }
-    {{lowerTitle $Struct.Name}}AndQC struct {
-        must{{$Struct.Name}}C
-        left, right *{{lowerTitle .Name}}FC
+    } else {
+        for i, field := range q.distinctFields {
+            if i > 0 {
+                sb.WriteString(", ")
+            }
+            sb.WriteString(q.alias.String() + "." + field.String())
+        }
     }
 
-    {{lowerTitle $Struct.Name}}RawQC struct {
-        must{{$Struct.Name}}C
-        prefix string
-        query string
-        val []any
+    sb.WriteString(string(" FROM " + q.table + " AS "))
+    sb.WriteString(q.alias.String())
+
+    if len(q.whereClauses) > 0 {
+        sb.WriteString(" WHERE ")
+        var whereParts []string
+        for _, clause := range q.whereClauses {
+            clauseSQL, clauseArgs := clause.build(q.alias)
+            for range clauseArgs {
+                clauseSQL = strings.Replace(clauseSQL, "?", fmt.Sprintf("$%d", paramIndex), 1)
+                paramIndex++
+            }
+            whereParts = append(whereParts, clauseSQL)
+            args = append(args, clauseArgs...)
+        }
+        sb.WriteString(strings.Join(whereParts, " AND "))
     }
 
-    {{lowerTitle $Struct.Name}}SubQC struct {
-        must{{$Struct.Name}}C
-        prefix string
-        query ormQuery
+    if len(q.groupBy) > 0 {
+        sb.WriteString(" GROUP BY ")
+        for i, groupBy := range q.groupBy {
+            if i > 0 {
+                sb.WriteString(", ")
+            }
+            sb.WriteString(q.alias.String() + "." +groupBy.String())
+        }
     }
-)
 
-func (q *{{lowerTitle $Struct.Name}}QT) Or(left, right *{{lowerTitle $Struct.Name}}FC) *{{lowerTitle $Struct.Name}}OrQC {
-    return &{{lowerTitle $Struct.Name}}OrQC{
-        left: left,
-        right: right,
+    if len(q.orderByASC) > 0 || len(q.orderByDESC) > 0 {
+        sb.WriteString(" ORDER BY ")
+        first := true
+        for _, field := range q.orderByASC {
+            if !first {
+                sb.WriteString(", ")
+            }
+            sb.WriteString(q.alias.String() + "." +field.String() + " ASC")
+            first = false
+        }
+        for _, field := range q.orderByDESC {
+            if !first {
+                sb.WriteString(", ")
+            }
+            sb.WriteString(q.alias.String() + "." +field.String() + " DESC")
+            first = false
+        }
     }
-}
-func (q *{{lowerTitle $Struct.Name}}QT) And(left, right *{{lowerTitle $Struct.Name}}FC) *{{lowerTitle $Struct.Name}}AndQC {
-    return &{{lowerTitle $Struct.Name}}AndQC{
-        left: left,
-        right: right,
+
+    if q.limit > 0 {
+        sb.WriteString(" LIMIT ")
+        sb.WriteString(fmt.Sprint(q.limit))
     }
-}
-func (q *{{lowerTitle $Struct.Name}}QT) SubQ(prefix string, query ormQuery) *{{lowerTitle $Struct.Name}}SubQC {
-    return &{{lowerTitle $Struct.Name}}SubQC{
-        prefix: prefix,
-        query: query,
+
+    if q.offset > 0 {
+        sb.WriteString(" OFFSET ")
+        sb.WriteString(fmt.Sprint(q.offset))
     }
+
+    return sb.String(), args
 }
-func (q *{{lowerTitle $Struct.Name}}QT) Raw(prefix string, sql string, args ...any) *{{lowerTitle $Struct.Name}}RawQC {
-    return &{{lowerTitle $Struct.Name}}RawQC{
-        prefix: prefix,
-        query: sql,
-        val: args,
-    }
+
+func (q *{{lowerTitle $Struct.Name}}SelectQuery) Fields(
+fields ...{{lowerTitle $Struct.Name}}FieldAlias,
+) *{{lowerTitle $Struct.Name}}SelectQuery {
+    q.fields = fields
+    return q
 }
+
+func (q *{{lowerTitle $Struct.Name}}SelectQuery) Distinct(
+fields ...{{lowerTitle $Struct.Name}}FieldAlias,
+) *{{lowerTitle $Struct.Name}}SelectQuery {
+    q.distinctFields = fields
+    return q
+}
+func (q *{{lowerTitle $Struct.Name}}SelectQuery) Alias(
+alias string,
+) *{{lowerTitle $Struct.Name}}SelectQuery {
+    q.alias = ormTableAliasCast(alias)
+    return q
+}
+func (q *{{lowerTitle $Struct.Name}}SelectQuery) Where(
+clause ...ormQueryClause[{{lowerTitle $Struct.Name}}FieldAlias],
+) *{{lowerTitle $Struct.Name}}SelectQuery {
+    q.whereClauses = clause
+    return q
+}
+func (q *{{lowerTitle $Struct.Name}}SelectQuery) GroupBy(
+fields ...{{lowerTitle $Struct.Name}}FieldAlias,
+) *{{lowerTitle $Struct.Name}}SelectQuery {
+    q.groupBy = fields
+    return q
+}
+func (q *{{lowerTitle $Struct.Name}}SelectQuery) OrderByASC(
+fields ...{{lowerTitle $Struct.Name}}FieldAlias,
+) *{{lowerTitle $Struct.Name}}SelectQuery {
+    q.orderByASC = fields
+    return q
+}
+func (q *{{lowerTitle $Struct.Name}}SelectQuery) OrderByDESC(
+fields ...{{lowerTitle $Struct.Name}}FieldAlias,
+) *{{lowerTitle $Struct.Name}}SelectQuery {
+    q.orderByDESC = fields
+    return q
+}
+func (q *{{lowerTitle $Struct.Name}}SelectQuery) Limit(
+limit int,
+) *{{lowerTitle $Struct.Name}}SelectQuery {
+    q.limit = limit
+    return q
+}
+func (q *{{lowerTitle $Struct.Name}}SelectQuery) Offset(
+offset int,
+) *{{lowerTitle $Struct.Name}}SelectQuery {
+    q.offset = offset
+    return q
+}
+
+// DO NOT SHARE THIS OBJECT BETWEEN GOROUTINES
+type {{lowerTitle $Struct.Name}}UpdateQuery struct {
+
+}
+
+// DO NOT SHARE THIS OBJECT BETWEEN GOROUTINES
+type {{lowerTitle $Struct.Name}}DeleteQuery struct {
+
+}
+
+// DO NOT SHARE THIS OBJECT BETWEEN GOROUTINES
+type {{lowerTitle $Struct.Name}}InsertQuery struct {
+
+}
+
 {{end}}
+
 
 {{end}}
