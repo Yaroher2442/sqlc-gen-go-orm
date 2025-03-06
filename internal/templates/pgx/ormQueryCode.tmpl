@@ -50,6 +50,12 @@ func new{{ $Struct.Name}}QueryBuilder() *{{lowerTitle $Struct.Name}}QueryBuilder
     }
 }
 
+func (b *{{lowerTitle $Struct.Name}}QueryBuilder) Select1() *{{lowerTitle $Struct.Name}}SelectQuery{
+    return &{{lowerTitle $Struct.Name}}SelectQuery{
+        alias:  {{lowerTitle $Struct.Name}}TableAlias,
+    }
+}
+
 func (b *{{lowerTitle $Struct.Name}}QueryBuilder) Select(
 fields ...{{lowerTitle $Struct.Name}}FieldAlias,
 ) *{{lowerTitle $Struct.Name}}SelectQuery{
@@ -74,7 +80,7 @@ setters ...ormUpdateSetter[{{lowerTitle $Struct.Name}}FieldAlias],
     }
 }
 func (b *{{lowerTitle $Struct.Name}}QueryBuilder) Delete(
-where ...ormQueryClause[{{lowerTitle $Struct.Name}}FieldAlias],
+where ...ormQueryClause[must{{$Struct.Name}}FieldAlias],
 ) *{{lowerTitle $Struct.Name}}DeleteQuery{
     return &{{lowerTitle $Struct.Name}}DeleteQuery{
         alias:  {{lowerTitle $Struct.Name}}TableAlias,
@@ -82,7 +88,7 @@ where ...ormQueryClause[{{lowerTitle $Struct.Name}}FieldAlias],
     }
 }
 func (b *{{lowerTitle $Struct.Name}}QueryBuilder) Insert(
-setters ...ormInsertSetter[{{lowerTitle $Struct.Name}}FieldAlias],
+setters ...ormInsertSetter[must{{$Struct.Name}}FieldAlias],
 ) *{{lowerTitle $Struct.Name}}InsertQuery{
     return &{{lowerTitle $Struct.Name}}InsertQuery{
         alias:  {{lowerTitle $Struct.Name}}TableAlias,
@@ -122,11 +128,15 @@ func (q *{{lowerTitle $Struct.Name}}SelectQuery) build() (string, []any) {
             sb.WriteString(dfield.String())
         }
     } else {
-        for i, field := range q.fields {
-            if i > 0 {
-                sb.WriteString(", ")
+        if len(q.fields) > 0 {
+            for i, field := range q.fields {
+                if i > 0 {
+                    sb.WriteString(", ")
+                }
+                sb.WriteString(q.alias.String() + "." + field.String())
             }
-            sb.WriteString(q.alias.String() + "." + field.String())
+        }else {
+            sb.WriteString("1")
         }
     }
 
@@ -343,7 +353,7 @@ fields ...{{lowerTitle $Struct.Name}}FieldAlias,
 
 // DO NOT SHARE THIS OBJECT BETWEEN GOROUTINES
 type {{lowerTitle $Struct.Name}}DeleteQuery struct {
-    whereClauses []ormQueryClause[{{lowerTitle $Struct.Name}}FieldAlias]
+    whereClauses []ormQueryClause[must{{$Struct.Name}}FieldAlias]
     alias ormTableAlias
     returningFields []{{lowerTitle $Struct.Name}}FieldAlias
 }
@@ -385,7 +395,7 @@ func (q *{{lowerTitle $Struct.Name}}DeleteQuery) build() (string, []any) {
 }
 
 func (q *{{lowerTitle $Struct.Name}}DeleteQuery) Where(
-clause ...ormQueryClause[{{lowerTitle $Struct.Name}}FieldAlias],
+clause ...ormQueryClause[must{{$Struct.Name}}FieldAlias],
 ) *{{lowerTitle $Struct.Name}}DeleteQuery {
     q.whereClauses = append(q.whereClauses, clause...)
     return q
@@ -407,7 +417,7 @@ fields ...{{lowerTitle $Struct.Name}}FieldAlias,
 
 // DO NOT SHARE THIS OBJECT BETWEEN GOROUTINES
 type {{lowerTitle $Struct.Name}}InsertQuery struct {
-    setters []ormInsertSetter[{{lowerTitle $Struct.Name}}FieldAlias]
+    setters []ormInsertSetter[must{{$Struct.Name}}FieldAlias]
     alias ormTableAlias
     returningFields []{{lowerTitle $Struct.Name}}FieldAlias
     onConflictFields []{{lowerTitle $Struct.Name}}FieldAlias
@@ -474,7 +484,7 @@ func (q *{{lowerTitle $Struct.Name}}InsertQuery) build() (string, []any) {
 }
 
 func (q *{{lowerTitle $Struct.Name}}InsertQuery) Set(
-setters ...ormInsertSetter[{{lowerTitle $Struct.Name}}FieldAlias],
+setters ...ormInsertSetter[must{{$Struct.Name}}FieldAlias],
 ) *{{lowerTitle $Struct.Name}}InsertQuery {
     q.setters = append(q.setters, setters...)
     return q

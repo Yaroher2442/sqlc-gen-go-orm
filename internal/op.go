@@ -41,20 +41,21 @@ const (
 )
 
 const NullMask = OpIsNull | OpIsNotNull
+const InNotInMask = OpIn | OpNotIn
 
 const BoolOps = OpEq | OpNeq
 const NullBoolOps = BoolOps | NullMask
-const FloatOps = OpEq | OpNeq | OpGt | OpGte | OpLt | OpLte | OpBetween | OpNotBetween
+const FloatOps = InNotInMask | OpEq | OpNeq | OpGt | OpGte | OpLt | OpLte | OpBetween | OpNotBetween
 const NullFloatOps = FloatOps | NullMask
-const IntOps = OpEq | OpNeq | OpGt | OpGte | OpLt | OpLte
+const IntOps = InNotInMask | OpEq | OpNeq | OpGt | OpGte | OpLt | OpLte
 const NullIntOps = IntOps | NullMask
-const StringOps = OpEq | OpNeq | OpLike | OpILike | OpNotLike | OpNotILike | OpSimilar | OpNotSimilar
+const StringOps = InNotInMask | OpEq | OpNeq | OpLike | OpILike | OpNotLike | OpNotILike | OpSimilar | OpNotSimilar
 const NullStringOps = StringOps | NullMask
 const ArrayOps = OpEq | OpNeq | OpIn | OpNotIn | OpArrayContains | OpArrayContainedBy | OpArrayOverlap
 const NullArrayOps = ArrayOps | NullMask
 const JsonOps = OpEq | OpNeq | OpIn | OpNotIn | OpJsonContains | OpJsonContainedBy | OpJsonHasKey | OpJsonHasAnyKeys | OpJsonHasAllKeys
 const NullJsonOps = JsonOps | NullMask
-const TimeOps = OpEq | OpNeq | OpGt | OpGte | OpLt | OpLte | OpBetween | OpNotBetween
+const TimeOps = InNotInMask | OpEq | OpNeq | OpGt | OpGte | OpLt | OpLte | OpBetween | OpNotBetween
 const NullTimeOps = TimeOps | NullMask
 
 const ExistsOps = OpExists | OpNotExists

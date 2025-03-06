@@ -469,7 +469,9 @@ func (i *importer) ormImports() fileImports {
 
 func (i *importer) ormFieldsImports() fileImports {
 	return fileImports{
-		Std: []ImportSpec{},
+		Std: []ImportSpec{
+			{Path: "strings"},
+		},
 		Dep: []ImportSpec{
 			{Path: "github.com/jackc/pgx/v5/pgtype"},
 		},

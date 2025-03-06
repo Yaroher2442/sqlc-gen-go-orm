@@ -45,13 +45,13 @@ type (
         operator string
         val []any
     }
-    whereRawSqlClause[T ormFieldAlias] struct {
+    whereFieldRawSqlClause[T ormFieldAlias] struct {
         field T
         operator string
         rawSql string
         val []any
     }
-    whereSubQClause[T ormFieldAlias] struct {
+    whereFieldSubQClause[T ormFieldAlias] struct {
         field T
         operator string
         subQ ormQuery
@@ -61,6 +61,22 @@ type (
         alias ormTableAlias
         aliasedField ormFieldAlias
     }
+    whereAndClause[T ormFieldAlias] struct {
+        elems []ormQueryClause[T]
+    }
+    whereOrClause[T ormFieldAlias] struct {
+        elems []ormQueryClause[T]
+    }
+    whereSubQClause[T ormFieldAlias] struct {
+        operator string
+        subQ ormQuery
+    }
+    whereRawSqlClause[T ormFieldAlias] struct {
+        operator string
+        rawSql string
+        val []any
+    }
+
 
     fieldSetter[T ormFieldAlias, V any] struct {
         field T
@@ -83,16 +99,16 @@ type (
 
 func (b *whereClause[T]) mustOrmQueryClause(T) {}
 func (b *whereClause[T]) build(ta ormTableAlias) (string, []any) {
-    return ta.String() + "." + b.field.String() + " " + b.operator + " ?", b.val
+    return ta.String() + "." + b.field.String() + " " + b.operator + " (?)", b.val
 }
 
-func (b *whereRawSqlClause[T]) mustOrmQueryClause(T) {}
-func (b *whereRawSqlClause[T]) build(ta ormTableAlias) (string, []any) {
+func (b *whereFieldRawSqlClause[T]) mustOrmQueryClause(T) {}
+func (b *whereFieldRawSqlClause[T]) build(ta ormTableAlias) (string, []any) {
     return ta.String() + "." + b.field.String() + " " + b.operator + " (" + b.rawSql+ ")", b.val
 }
 
-func (b *whereSubQClause[T]) mustOrmQueryClause(T) {}
-func (b *whereSubQClause[T]) build(ta ormTableAlias) (string, []any) {
+func (b *whereFieldSubQClause[T]) mustOrmQueryClause(T) {}
+func (b *whereFieldSubQClause[T]) build(ta ormTableAlias) (string, []any) {
     query, args := b.subQ.build()
     return ta.String() + "." + b.field.String() + " " + b.operator + " (" + query[:len(query)-1] + ")", args
 }
@@ -100,6 +116,41 @@ func (b *whereSubQClause[T]) build(ta ormTableAlias) (string, []any) {
 func (b *whereAliasClause[T]) mustOrmQueryClause(T) {}
 func (b *whereAliasClause[T]) build(ta ormTableAlias) (string, []any) {
     return ta.String() + "." + b.field.String()  + "=" + b.alias.String() + "." + b.aliasedField.String(), nil
+}
+
+func (b *whereAndClause[T]) mustOrmQueryClause(T) {}
+func (b *whereAndClause[T]) build(ta ormTableAlias) (string, []any) {
+    var args []any
+    var exprs []string
+    for _, clause := range b.elems {
+        clauseSQL, clauseArgs := clause.build(ta)
+        exprs = append(exprs, clauseSQL)
+        args = append(args, clauseArgs...)
+    }
+    return "(" + strings.Join(exprs, " AND ") + ")", args
+}
+
+func (b *whereOrClause[T]) mustOrmQueryClause(T) {}
+func (b *whereOrClause[T]) build(ta ormTableAlias) (string, []any) {
+   var args []any
+   var exprs []string
+   for _, clause := range b.elems {
+       clauseSQL, clauseArgs := clause.build(ta)
+       exprs = append(exprs, clauseSQL)
+       args = append(args, clauseArgs...)
+   }
+   return "(" + strings.Join(exprs, " OR ") + ")", args
+}
+
+func (b *whereSubQClause[T]) mustOrmQueryClause(T) {}
+func (b *whereSubQClause[T]) build(ta ormTableAlias) (string, []any) {
+    query, args := b.subQ.build()
+    return b.operator + " (" + query[:len(query)-1] + ")", args
+}
+
+func (b *whereRawSqlClause[T]) mustOrmQueryClause(T) {}
+func (b *whereRawSqlClause[T]) build(ta ormTableAlias) (string, []any) {
+    return b.operator + " (" + b.rawSql+ ")", b.val
 }
 
 func (b *fieldSetter[T, V]) mustOrmUpdateSetter(T) {}
@@ -142,10 +193,46 @@ func new{{$Struct.Name}}WhereClauseBuilder() *{{lowerTitle $Struct.Name}}WhereCl
     }
 }
 
-{{ range $idx,$field := .Fields}}
-type {{lowerTitle $Struct.Name}}{{.Name}}FieldWhereClauseBuilder struct {
-
+func (b *{{lowerTitle $Struct.Name}}WhereClauseBuilder) And(
+elements ...ormQueryClause[must{{$Struct.Name}}FieldAlias],
+) *whereAndClause[must{{$Struct.Name}}FieldAlias] {
+    return &whereAndClause[must{{$Struct.Name}}FieldAlias]{
+        elems: elements,
+    }
 }
+
+func (b *{{lowerTitle $Struct.Name}}WhereClauseBuilder) Or(
+elements ...ormQueryClause[must{{$Struct.Name}}FieldAlias],
+) *whereOrClause[must{{$Struct.Name}}FieldAlias] {
+    return &whereOrClause[must{{$Struct.Name}}FieldAlias]{
+        elems: elements,
+    }
+}
+
+func (b *{{lowerTitle $Struct.Name}}WhereClauseBuilder) SubQ(
+operation string,
+query ormQuery,
+) *whereSubQClause[must{{$Struct.Name}}FieldAlias] {
+    return &whereSubQClause[must{{$Struct.Name}}FieldAlias]{
+        operator: operation,
+        subQ: query,
+    }
+}
+
+func (b *{{lowerTitle $Struct.Name}}WhereClauseBuilder) Raw(
+operation string,
+sql string,
+args ...any,
+) ormQueryClause[must{{$Struct.Name}}FieldAlias] {
+    return &whereRawSqlClause[must{{$Struct.Name}}FieldAlias]{
+        operator: operation,
+        rawSql : sql,
+        val: args,
+    }
+}
+
+{{ range $idx,$field := .Fields}}
+type {{lowerTitle $Struct.Name}}{{.Name}}FieldWhereClauseBuilder struct {}
 {{- range $action, $sql := .SqlCanAction}}
 
 {{- end}}
@@ -153,8 +240,8 @@ type {{lowerTitle $Struct.Name}}{{.Name}}FieldWhereClauseBuilder struct {
 func (b *{{lowerTitle $Struct.Name}}{{.Name}}FieldWhereClauseBuilder) SubQ(
 operation string,
 query ormQuery,
-) *whereSubQClause[must{{$Struct.Name}}FieldAlias] {
-    return &whereSubQClause[must{{$Struct.Name}}FieldAlias]{
+) *whereFieldSubQClause[must{{$Struct.Name}}FieldAlias] {
+    return &whereFieldSubQClause[must{{$Struct.Name}}FieldAlias]{
         field: {{lowerTitle $Struct.Name}}{{$field.Name}},
         operator: operation,
         subQ: query,
@@ -164,14 +251,15 @@ func (b *{{lowerTitle $Struct.Name}}{{.Name}}FieldWhereClauseBuilder) Raw(
 operation string,
 sql string,
 args ...any,
-) *whereRawSqlClause[must{{$Struct.Name}}FieldAlias] {
-    return &whereRawSqlClause[must{{$Struct.Name}}FieldAlias]{
+) *whereFieldRawSqlClause[must{{$Struct.Name}}FieldAlias] {
+    return &whereFieldRawSqlClause[must{{$Struct.Name}}FieldAlias]{
         field: {{lowerTitle $Struct.Name}}{{$field.Name}},
         operator: operation,
         rawSql : sql,
         val: args,
     }
 }
+
 func (b *{{lowerTitle $Struct.Name}}{{.Name}}FieldWhereClauseBuilder) AliasEq(
 alias ormTableAlias,
 field ormFieldAlias,
@@ -205,6 +293,21 @@ end {{$field.Type}},
         val: []any{start,end},
     }
 }
+{{else if contains $action "In"}}
+func (b *{{lowerTitle $Struct.Name}}{{$field.Name}}FieldWhereClauseBuilder) {{- camel $action}}(
+values ...{{$field.Type}},
+) *whereClause[must{{$Struct.Name}}FieldAlias] {
+    r:=make([]any, len(values))
+    for i, v := range values {
+        r[i] = v
+    }
+    return &whereClause[must{{$Struct.Name}}FieldAlias]{
+        field: {{lowerTitle $Struct.Name}}{{$field.Name}},
+        operator: "{{ $sql }}",
+        val: r,
+    }
+}
+
 {{- else}}
 func (b *{{lowerTitle $Struct.Name}}{{$field.Name}}FieldWhereClauseBuilder) {{- camel $action}}(
 val {{$field.Type}},
