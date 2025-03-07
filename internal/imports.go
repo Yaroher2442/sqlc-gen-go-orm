@@ -104,6 +104,7 @@ func (i *importer) Imports(filename string) [][]ImportSpec {
 	ormFileName := "orm.go"
 	ormQueryFile := "orm_query.go"
 	ormFieldsFile := "orm_fields.go"
+	ormSelectFile := "orm_select.go"
 
 	switch filename {
 	case dbFileName:
@@ -122,6 +123,8 @@ func (i *importer) Imports(filename string) [][]ImportSpec {
 		return mergeImports(i.ormQueryImports())
 	case ormFieldsFile:
 		return mergeImports(i.ormFieldsImports())
+	case ormSelectFile:
+		return mergeImports(i.builderImports())
 
 	default:
 		return mergeImports(i.queryImports(filename))
@@ -477,12 +480,22 @@ func (i *importer) ormFieldsImports() fileImports {
 		},
 	}
 }
-func (i *importer) ormQueryImports() fileImports {
+func (i *importer) builderImports() fileImports {
 	return fileImports{
 		Std: []ImportSpec{
 			{Path: "fmt"},
 			{Path: "strings"},
 			{Path: "strconv"},
+		},
+		Dep: []ImportSpec{},
+	}
+}
+func (i *importer) ormQueryImports() fileImports {
+	return fileImports{
+		Std: []ImportSpec{
+			//{Path: "fmt"},
+			//{Path: "strings"},
+			//{Path: "strconv"},
 		},
 		Dep: []ImportSpec{},
 	}

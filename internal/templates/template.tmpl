@@ -281,3 +281,9 @@ import (
     {{- template "ormTableCodePgx" .}}
 {{end}}
 {{end}}
+
+{{define "ormSelectFile"}}
+{{if .SQLDriver.IsPGX }}
+    {{- template "ormSelectCodePgx" .}}
+{{end}}
+{{end}}

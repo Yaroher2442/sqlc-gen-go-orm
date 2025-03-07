@@ -78,9 +78,9 @@ type (
     }
 
 
-    fieldSetter[T ormFieldAlias, V any] struct {
+    fieldSetter[T ormFieldAlias] struct {
         field T
-        val V
+        val any
     }
     fieldsSubQSetter[T ormFieldAlias] struct {
         field T
@@ -149,8 +149,8 @@ func (b *whereRawSqlClause[T]) build(ta ormTableAlias, paramIndex *int) (string,
     return b.operator + " (" + b.rawSql+ ")", b.val
 }
 
-func (b *fieldSetter[T, V]) mustOrmUpdateSetter(T) {}
-func (b *fieldSetter[T, V]) build(ta ormTableAlias, paramIndex *int) (string, []any) {
+func (b *fieldSetter[T]) mustOrmUpdateSetter(T) {}
+func (b *fieldSetter[T]) build(ta ormTableAlias, paramIndex *int) (string, []any) {
     return ta.String() + "." + b.field.String() + " = ?", []any{b.val}
 }
 
@@ -334,8 +334,8 @@ type {{lowerTitle $Struct.Name}}{{.Name}}FieldSetterBuilder struct {}
 
 func (b *{{lowerTitle $Struct.Name}}{{.Name}}FieldSetterBuilder) Set(
 val {{$field.Type}},
-) *fieldSetter[{{lowerTitle $Struct.Name}}FieldAlias, {{$field.Type}}] {
-    return &fieldSetter[{{lowerTitle $Struct.Name}}FieldAlias, {{$field.Type}}]{
+) *fieldSetter[must{{$Struct.Name}}FieldAlias] {
+    return &fieldSetter[must{{$Struct.Name}}FieldAlias]{
         field: {{lowerTitle $Struct.Name}}{{.Name}},
         val: val,
     }

@@ -365,6 +365,9 @@ func generate(req *plugin.GenerateRequest, options *opts.Options, enums []Enum, 
 		if err := execute("orm_fields.go", "ormFieldsFile"); err != nil {
 			return nil, err
 		}
+		if err := execute("orm_select.go", "ormSelectFile"); err != nil {
+			return nil, err
+		}
 		if err := execute("orm_table.go", "ormTableFile"); err != nil {
 			return nil, err
 		}
