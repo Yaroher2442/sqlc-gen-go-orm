@@ -25,7 +25,8 @@ import (
 
 type ormQuery interface {
     mustOrmQuery()
-    build() (string, []any)
+    build(*int) (string, []any)
+    Build() (string, []any)
 }
 
 
@@ -37,16 +38,16 @@ type ormQuery interface {
 type {{lowerTitle $Struct.Name}}QueryBuilder struct {
     W *{{lowerTitle $Struct.Name}}WhereClauseBuilder
     U *{{lowerTitle $Struct.Name}}FieldSetterBuilder
-    I *{{lowerTitle $Struct.Name}}FieldInsertBuilder
-    A *{{lowerTitle $Struct.Name}}Aliases
+    T ormTableAlias
+    F *{{lowerTitle .Name}}FieldAliases
 }
 
 func new{{ $Struct.Name}}QueryBuilder() *{{lowerTitle $Struct.Name}}QueryBuilder {
     return &{{lowerTitle $Struct.Name}}QueryBuilder{
         W: new{{$Struct.Name}}WhereClauseBuilder(),
         U: new{{$Struct.Name}}FieldSetterBuilder(),
-        I: new{{$Struct.Name}}FieldInsertBuilder(),
-        A: new{{$Struct.Name}}Aliases(),
+        T: {{lowerTitle .Name}}TableAlias,
+        F: new{{$Struct.Name}}FieldAliases(),
     }
 }
 
@@ -112,11 +113,14 @@ type {{lowerTitle $Struct.Name}}SelectQuery struct {
 }
 
 
-func (*{{lowerTitle $Struct.Name}}SelectQuery) mustOrmQuery()  {}
-func (q *{{lowerTitle $Struct.Name}}SelectQuery) build() (string, []any) {
+func (q *{{lowerTitle $Struct.Name}}SelectQuery) mustOrmQuery()  {}
+func (q *{{lowerTitle $Struct.Name}}SelectQuery) Build() (string, []any) {
+    i:=1
+    return q.build(&i)
+}
+func (q *{{lowerTitle $Struct.Name}}SelectQuery) build(paramIndex *int) (string, []any) {
     var sb strings.Builder
     var args []interface{}
-    paramIndex := 1
 
     sb.WriteString("SELECT ")
     if len(q.distinctFields) > 0 {
@@ -147,10 +151,10 @@ func (q *{{lowerTitle $Struct.Name}}SelectQuery) build() (string, []any) {
         sb.WriteString(" WHERE ")
         var whereParts []string
         for _, clause := range q.whereClauses {
-            clauseSQL, clauseArgs := clause.build(q.alias)
+            clauseSQL, clauseArgs := clause.build(q.alias, paramIndex)
             for range clauseArgs {
-                clauseSQL = strings.Replace(clauseSQL, "?", "$" + strconv.Itoa(paramIndex), 1)
-                paramIndex++
+                clauseSQL = strings.Replace(clauseSQL, "?", "$" + strconv.Itoa(*paramIndex), 1)
+                (*paramIndex)++
             }
             whereParts = append(whereParts, clauseSQL)
             args = append(args, clauseArgs...)
@@ -271,11 +275,14 @@ type {{lowerTitle $Struct.Name}}UpdateQuery struct {
     returningFields []{{lowerTitle $Struct.Name}}FieldAlias
 }
 
-func (*{{lowerTitle $Struct.Name}}UpdateQuery) mustOrmQuery() {}
-func (q *{{lowerTitle $Struct.Name}}UpdateQuery) build() (string, []any) {
+func (q *{{lowerTitle $Struct.Name}}UpdateQuery) mustOrmQuery() {}
+func (q *{{lowerTitle $Struct.Name}}UpdateQuery) Build() (string, []any) {
+    i:=1
+    return q.build(&i)
+}
+func (q *{{lowerTitle $Struct.Name}}UpdateQuery) build(paramIndex *int) (string, []any) {
     sb := strings.Builder{}
     args := []any{}
-	paramIndex := 1
     sb.WriteString("UPDATE ")
     sb.WriteString(q.alias.String())
     sb.WriteString(" SET ")
@@ -283,10 +290,10 @@ func (q *{{lowerTitle $Struct.Name}}UpdateQuery) build() (string, []any) {
         return "SELECT 1;", args
     }
     for i, setter := range q.setters {
-        setterSql, setterArgs := setter.build(q.alias)
+        setterSql, setterArgs := setter.build(q.alias, paramIndex)
         for range setterArgs {
-            setterSql = strings.Replace(setterSql, "?", "$" + strconv.Itoa(paramIndex), 1)
-            paramIndex++
+            setterSql = strings.Replace(setterSql, "?", "$" + strconv.Itoa(*paramIndex), 1)
+            (*paramIndex)++
         }
         if i > 0 {
             sb.WriteString(", ")
@@ -298,10 +305,10 @@ func (q *{{lowerTitle $Struct.Name}}UpdateQuery) build() (string, []any) {
         sb.WriteString(" WHERE ")
         var whereParts []string
         for _, clause := range q.whereClauses {
-            clauseSQL, clauseArgs := clause.build(q.alias)
+            clauseSQL, clauseArgs := clause.build(q.alias, paramIndex)
             for range clauseArgs {
-                clauseSQL = strings.Replace(clauseSQL, "?", "$" + strconv.Itoa(paramIndex), 1)
-                paramIndex++
+                clauseSQL = strings.Replace(clauseSQL, "?", "$" + strconv.Itoa(*paramIndex), 1)
+                (*paramIndex)++
             }
             whereParts = append(whereParts, clauseSQL)
             args = append(args, clauseArgs...)
@@ -359,20 +366,23 @@ type {{lowerTitle $Struct.Name}}DeleteQuery struct {
 }
 
 func (*{{lowerTitle $Struct.Name}}DeleteQuery) mustOrmQuery() {}
-func (q *{{lowerTitle $Struct.Name}}DeleteQuery) build() (string, []any) {
+func (q *{{lowerTitle $Struct.Name}}DeleteQuery) Build() (string, []any) {
+    i:=1
+    return q.build(&i)
+}
+func (q *{{lowerTitle $Struct.Name}}DeleteQuery) build(paramIndex *int) (string, []any) {
     sb := strings.Builder{}
     args := []any{}
-    paramIndex := 1
     sb.WriteString("DELETE FROM ")
     sb.WriteString(q.alias.String())
     if len(q.whereClauses) > 0 {
         sb.WriteString(" WHERE ")
         var whereParts []string
         for _, clause := range q.whereClauses {
-            clauseSQL, clauseArgs := clause.build(q.alias)
+            clauseSQL, clauseArgs := clause.build(q.alias, paramIndex)
             for range clauseArgs {
-                clauseSQL = strings.Replace(clauseSQL, "?", "$" + strconv.Itoa(paramIndex), 1)
-                paramIndex++
+                clauseSQL = strings.Replace(clauseSQL, "?", "$" + strconv.Itoa(*paramIndex), 1)
+                (*paramIndex)++
             }
             whereParts = append(whereParts, clauseSQL)
             args = append(args, clauseArgs...)
@@ -425,13 +435,16 @@ type {{lowerTitle $Struct.Name}}InsertQuery struct {
 }
 
 func (*{{lowerTitle $Struct.Name}}InsertQuery) mustOrmQuery() {}
-func (q *{{lowerTitle $Struct.Name}}InsertQuery) build() (string, []any) {
+func (q *{{lowerTitle $Struct.Name}}InsertQuery) Build() (string, []any) {
+    i:=1
+    return q.build(&i)
+}
+func (q *{{lowerTitle $Struct.Name}}InsertQuery) build(paramIndex *int) (string, []any) {
     sb := strings.Builder{}
-    paramIndex := 1
     var args []any
     var fields []string
     for _, setter := range q.setters {
-        field, arg := setter.build(q.alias)
+        field, arg := setter.build(q.alias, paramIndex)
         fields = append(fields, field)
         args = append(args, arg)
     }
@@ -451,7 +464,7 @@ func (q *{{lowerTitle $Struct.Name}}InsertQuery) build() (string, []any) {
             sb.WriteString(", ")
         }
         sb.WriteString("$" + strconv.Itoa(i))
-        paramIndex++
+        *(paramIndex)++
     }
     sb.WriteString(")")
 

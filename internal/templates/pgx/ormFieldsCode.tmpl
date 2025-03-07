@@ -25,17 +25,17 @@ import (
 
 type ormQueryClause[T ormFieldAlias] interface {
    mustOrmQueryClause(T)
-   build(ta ormTableAlias) (string, []any)
+   build(ta ormTableAlias, paramIndex *int) (string, []any)
 }
 
 type ormUpdateSetter[T ormFieldAlias] interface {
     mustOrmUpdateSetter(T)
-    build(ta ormTableAlias) (string, []any)
+    build(ta ormTableAlias, paramIndex *int) (string, []any)
 }
 
 type ormInsertSetter[T ormFieldAlias] interface {
     mustOrmInsertSetter(T)
-    build(ta ormTableAlias) (string, any)
+    build(ta ormTableAlias, paramIndex *int) (string, any)
 }
 
 
@@ -91,39 +91,35 @@ type (
         rawSql string
         val []any
     }
-    fieldInsertSetter[T ormFieldAlias, V any] struct {
-        field T
-        val V
-    }
 )
 
 func (b *whereClause[T]) mustOrmQueryClause(T) {}
-func (b *whereClause[T]) build(ta ormTableAlias) (string, []any) {
+func (b *whereClause[T]) build(ta ormTableAlias, paramIndex *int) (string, []any) {
     return ta.String() + "." + b.field.String() + " " + b.operator + " (?)", b.val
 }
 
 func (b *whereFieldRawSqlClause[T]) mustOrmQueryClause(T) {}
-func (b *whereFieldRawSqlClause[T]) build(ta ormTableAlias) (string, []any) {
+func (b *whereFieldRawSqlClause[T]) build(ta ormTableAlias, paramIndex *int) (string, []any) {
     return ta.String() + "." + b.field.String() + " " + b.operator + " (" + b.rawSql+ ")", b.val
 }
 
 func (b *whereFieldSubQClause[T]) mustOrmQueryClause(T) {}
-func (b *whereFieldSubQClause[T]) build(ta ormTableAlias) (string, []any) {
-    query, args := b.subQ.build()
+func (b *whereFieldSubQClause[T]) build(ta ormTableAlias, paramIndex *int) (string, []any) {
+    query, args := b.subQ.build(paramIndex)
     return ta.String() + "." + b.field.String() + " " + b.operator + " (" + query[:len(query)-1] + ")", args
 }
 
 func (b *whereAliasClause[T]) mustOrmQueryClause(T) {}
-func (b *whereAliasClause[T]) build(ta ormTableAlias) (string, []any) {
+func (b *whereAliasClause[T]) build(ta ormTableAlias, paramIndex *int) (string, []any) {
     return ta.String() + "." + b.field.String()  + "=" + b.alias.String() + "." + b.aliasedField.String(), nil
 }
 
 func (b *whereAndClause[T]) mustOrmQueryClause(T) {}
-func (b *whereAndClause[T]) build(ta ormTableAlias) (string, []any) {
+func (b *whereAndClause[T]) build(ta ormTableAlias, paramIndex *int) (string, []any) {
     var args []any
     var exprs []string
     for _, clause := range b.elems {
-        clauseSQL, clauseArgs := clause.build(ta)
+        clauseSQL, clauseArgs := clause.build(ta, paramIndex)
         exprs = append(exprs, clauseSQL)
         args = append(args, clauseArgs...)
     }
@@ -131,11 +127,11 @@ func (b *whereAndClause[T]) build(ta ormTableAlias) (string, []any) {
 }
 
 func (b *whereOrClause[T]) mustOrmQueryClause(T) {}
-func (b *whereOrClause[T]) build(ta ormTableAlias) (string, []any) {
+func (b *whereOrClause[T]) build(ta ormTableAlias, paramIndex *int) (string, []any) {
    var args []any
    var exprs []string
    for _, clause := range b.elems {
-       clauseSQL, clauseArgs := clause.build(ta)
+       clauseSQL, clauseArgs := clause.build(ta, paramIndex)
        exprs = append(exprs, clauseSQL)
        args = append(args, clauseArgs...)
    }
@@ -143,35 +139,30 @@ func (b *whereOrClause[T]) build(ta ormTableAlias) (string, []any) {
 }
 
 func (b *whereSubQClause[T]) mustOrmQueryClause(T) {}
-func (b *whereSubQClause[T]) build(ta ormTableAlias) (string, []any) {
-    query, args := b.subQ.build()
+func (b *whereSubQClause[T]) build(ta ormTableAlias, paramIndex *int) (string, []any) {
+    query, args := b.subQ.build(paramIndex)
     return b.operator + " (" + query[:len(query)-1] + ")", args
 }
 
 func (b *whereRawSqlClause[T]) mustOrmQueryClause(T) {}
-func (b *whereRawSqlClause[T]) build(ta ormTableAlias) (string, []any) {
+func (b *whereRawSqlClause[T]) build(ta ormTableAlias, paramIndex *int) (string, []any) {
     return b.operator + " (" + b.rawSql+ ")", b.val
 }
 
 func (b *fieldSetter[T, V]) mustOrmUpdateSetter(T) {}
-func (b *fieldSetter[T, V]) build(ta ormTableAlias) (string, []any) {
+func (b *fieldSetter[T, V]) build(ta ormTableAlias, paramIndex *int) (string, []any) {
     return ta.String() + "." + b.field.String() + " = ?", []any{b.val}
 }
 
 func (b *fieldsSubQSetter[T]) mustOrmUpdateSetter(T) {}
-func (b *fieldsSubQSetter[T]) build(ta ormTableAlias) (string, []any) {
-    query, args := b.subQ.build()
+func (b *fieldsSubQSetter[T]) build(ta ormTableAlias, paramIndex *int) (string, []any) {
+    query, args := b.subQ.build(paramIndex)
     return ta.String() + "." + b.field.String() + " = (" + query[:len(query)-1] + ")", args
 }
 
 func (b *fieldsRawQSetter[T]) mustOrmUpdateSetter(T) {}
-func (b *fieldsRawQSetter[T]) build(ta ormTableAlias) (string, []any) {
+func (b *fieldsRawQSetter[T]) build(ta ormTableAlias, paramIndex *int) (string, []any) {
     return ta.String() + "." + b.field.String() + " = (" + b.rawSql+")", b.val
-}
-
-func (b *fieldInsertSetter[T, V]) mustOrmInsertSetter(T) {}
-func (b *fieldInsertSetter[T, V]) build(ta ormTableAlias) (string, any) {
-    return ta.String() + "." + b.field.String(), b.val
 }
 
 {{- range .Structs}}
@@ -324,37 +315,6 @@ val {{$field.Type}},
 {{- end}}
 
 // -------------------------Set{{.Name}}--------------------------------------------------------------------------------------
-type {{lowerTitle $Struct.Name}}FieldInsertBuilder struct {
-    {{ range $idx,$field := .Fields}}
-    {{.Name}} *{{lowerTitle $Struct.Name}}{{.Name}}FieldInsertBuilder
-    {{- end}}
-}
-
-func new{{$Struct.Name}}FieldInsertBuilder() *{{lowerTitle $Struct.Name}}FieldInsertBuilder {
-    return &{{lowerTitle $Struct.Name}}FieldInsertBuilder{
-        {{ range $idx,$field := .Fields}}
-        {{.Name}}: &{{lowerTitle $Struct.Name}}{{.Name}}FieldInsertBuilder{},
-        {{- end}}
-    }
-}
-
-{{ range $idx,$field := .Fields}}
-
-type {{lowerTitle $Struct.Name}}{{.Name}}FieldInsertBuilder struct {}
-
-
-func (b *{{lowerTitle $Struct.Name}}{{.Name}}FieldInsertBuilder) Set(
-val {{$field.Type}},
-) *fieldInsertSetter[{{lowerTitle $Struct.Name}}FieldAlias,{{$field.Type}}] {
-    return &fieldInsertSetter[{{lowerTitle $Struct.Name}}FieldAlias,{{$field.Type}}]{
-        field: {{lowerTitle $Struct.Name}}{{.Name}},
-        val: val,
-    }
-}
-
-{{- end}}
-
-
 type {{lowerTitle $Struct.Name}}FieldSetterBuilder struct {
     {{ range $idx,$field := .Fields}}
     {{.Name}} *{{lowerTitle $Struct.Name}}{{.Name}}FieldSetterBuilder

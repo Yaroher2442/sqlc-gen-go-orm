@@ -48,27 +48,20 @@ type ormFieldAlias interface {
 
 {{- range .Structs}}
 {{- $Struct:= .}}
-type {{lowerTitle .Name}}Aliases struct {
-    T ormTableAlias
-    F {{lowerTitle .Name}}FieldAliases
-}
-
-func new{{.Name}}Aliases() *{{lowerTitle .Name}}Aliases {
-    return &{{lowerTitle .Name}}Aliases{
-        T: {{lowerTitle .Name}}TableAlias,
-        F: {{lowerTitle .Name}}FieldAliases{
-            {{ range $idx,$field := .Fields}}
-            {{.Name}}: {{lowerTitle $Struct.Name}}{{.Name}},
-            {{- end}}
-        },
-    }
-}
 
 
 type {{lowerTitle $Struct.Name}}FieldAliases struct {
     {{ range $idx,$field := .Fields}}
     {{.Name}} {{lowerTitle $Struct.Name}}FieldAlias
     {{- end}}
+}
+
+func new{{$Struct.Name}}FieldAliases() *{{lowerTitle $Struct.Name}}FieldAliases {
+    return &{{lowerTitle $Struct.Name}}FieldAliases{
+        {{- range $idx,$field := .Fields}}
+        {{.Name}}: {{lowerTitle $Struct.Name}}{{.Name}},
+        {{- end}}
+    }
 }
 
 type (
